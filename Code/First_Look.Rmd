@@ -1,0 +1,95 @@
+---
+title: "First Glimpse of Data"
+output: html_notebook
+---
+
+Initial View of Data 
+
+```{r}
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr)
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+```
+
+## Load data
+```{r}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1BNa3-tjadFT3NoDFdwlcSQZG1xnNXLoRSvNRAO3eMs0/edit#gid=325036460", na = c("NA", "?")) %>%
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
+                             Loc_mode_Ordinal == "A" ~ 2,
+                             Loc_mode_Ordinal == "Sc" ~ 3,
+                             Loc_mode_Ordinal == "T" ~ 4,
+                             Loc_mode_Ordinal == "Is" ~ 5,
+                             Loc_mode_Ordinal == "Sf" ~ 5,
+                             Loc_mode_Ordinal == "Ss" ~ 6,
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams),
+         #ratios
+         Ul_r = Uol / Ul) %>% 
+  relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(log_Mass, .before = Skl) %>% 
+  relocate(Ul_r, .before = Ul) %>% 
+   mutate_at(vars(17:72), scale2)
+  
+```
+
+What do the counts or each column look like?
+```{r}
+n = nrow(dat)
+
+dat %>% select(log_Mass:Pdpw) %>% 
+  summarise_all((~ sum(is.na(.)))) %>% 
+  mutate_if(is.double, ~ n - .) %>% 
+  pivot_longer(everything(), names_to = "measurement", values_to = "count_missing") %>% arrange(desc(count_missing), measurement) %>% 
+  mutate(per_missing = count_missing / n) #%>% view()
+  #filter(per_missing > 0.1) %>% 
+  #ggplot(aes(x = measurement, y = per_missing)) + geom_bar(stat="identity")
+
+```
+
+First Basic model!
+
+```{r}
+m1 <- brm(Loc_bin ~ Uol + log_Mass ,
+           family = bernoulli(),
+           data = dat, refresh = 0 )
+m2 <- brm(Loc_bin ~ Uol ,
+           family = bernoulli(),
+           data = dat, refresh = 0 )
+```
+
+```{r}
+dat %>% ggplot(aes (x = Uol , y = Loc_bin)) + geom_point()
+plot(conditional_effects(m1), points = T, plot = F)[[1]] + ylim(0,1.3)
+plot(conditional_effects(m2), points = T, plot = F)[[1]] + ylim(0,1.3)
+```
+
+Now with a ratio!
+
+```{r}
+dat2 <- dat %>% drop_na(Loc_bin)
+m3 <- brm(Loc_bin ~ Ul_r + log_Mass ,
+           family = bernoulli(),
+           data = dat2, refresh = 0 )
+m4 <- brm(Loc_bin ~ Ul_r ,
+           family = bernoulli(),
+           data = dat2, refresh = 0 )
+```
+
+
+```{r}
+dat2 %>% ggplot(aes (x = Ul_r , y = Loc_bin)) + geom_point()
+plot(conditional_effects(m3), points = T, plot = F)[[1]] 
+plot(conditional_effects(m4), points = T,   plot = F)[[1]]  
+
+#ce + geom_point( data = dat2, aes(y = as.double(Loc_bin) - 1, x = Ul_r) , inherit.aes = FALSE)
+```
+
