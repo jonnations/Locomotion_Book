@@ -14,7 +14,7 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
 
 #### Load data
 
-Note that the indices are all caps, and the linear measurements have lowercase letters after the first.
+You can see the indices I add in the code below. Note that the indices are all caps, and the linear measurements have lowercase letters after the first.
 
 ```{r message = FALSE, warning=FALSE}
 dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
@@ -39,7 +39,9 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
     relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
   relocate(log_Mass, .before = Skl) %>% 
-#Calculate Ratios
+#################
+#Calculate Indices!
+#################
   mutate(SI = Sh / Sl,             # Scapular Index
          HRI = Hsw / Hl,           # Humeral Robustness Index
          HPI = Hpw / Hl,           # Humeral Proximal Index
@@ -73,7 +75,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
 What does the missing data look like?\
 You can scroll through the table below to see
 
-```{r }
+```{r  echo = FALSE}
 n = nrow(dat)
 
 dat %>% select(16:93) %>% 
@@ -138,8 +140,8 @@ Here are some standouts: (*remember, these are log-transformed and size-correcte
 
 ```{r message = FALSE, warning=FALSE, cache=TRUE}
 for(i in fit_list2){
- plot <- plot(conditional_effects(i), plot=F, points = T)[[1]]
- print(plot)
+ plots <- plot(conditional_effects(i), plot=F, points = T)[[1]]
+ print(plots + theme_bw())
 }
 
 ```
