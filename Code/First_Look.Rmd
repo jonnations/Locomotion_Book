@@ -68,8 +68,8 @@ m2 <- brm(Loc_bin ~ Uol ,
 
 ```{r}
 dat %>% ggplot(aes (x = Uol , y = Loc_bin)) + geom_point()
-plot(conditional_effects(m1), points = T, plot = F)[[1]] + ylim(0,1.3)
-plot(conditional_effects(m2), points = T, plot = F)[[1]] + ylim(0,1.3)
+plot(conditional_effects(m1), points = T, plot = F)[[1]] 
+plot(conditional_effects(m2), points = T, plot = F)[[1]] 
 ```
 
 Now with a ratio!
@@ -86,10 +86,7 @@ m4 <- brm(Loc_bin ~ Ul_r ,
 
 
 ```{r}
-dat2 %>% ggplot(aes (x = Ul_r , y = Loc_bin)) + geom_point()
 plot(conditional_effects(m3), points = T, plot = F)[[1]] 
 plot(conditional_effects(m4), points = T,   plot = F)[[1]]  
-
-#ce + geom_point( data = dat2, aes(y = as.double(Loc_bin) - 1, x = Ul_r) , inherit.aes = FALSE)
 ```
 
