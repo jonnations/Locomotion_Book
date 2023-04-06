@@ -1,0 +1,40 @@
+---
+title: "Outlines and Notes for book chapter"
+output: html_notebook
+---
+
+## Abstract / Summary
+
+Locomotor variation has played a key role in the evolution of mammals, and the variation of locomotor modes in mammals is astounding. The numerous transitions to arboreality across mammals is especially interesting, and has been hypothesized to be key to the success of the radiation. As such, relating phenotype to locomotor mode, particularly climbing, has long been a goal of evolutionary ecology, both to better understand mammal diversity and to make locomotor inferences for taxa that lack information such as fossils. The postcranium of mammals is a particular target for gleaning locomotor information, and has a relatively strong presence in the fossil record. However, the efforts to predict locomotion from the skeleton have been hampered several issues: the vase phenotypic disparity among terrestrial mammals, differences in phenotypic signals of locomotion among clades, wide variety of phenotypic measurements available for inference, multiple different methods to incorporate body size into locomotor predictions, and the endless numbers of ways that locomotor mode can be described or categorized. To date, several broad trends have emerged yet there is no consensus on the best methods of measuring, describing, and predicting locomotion across mammals. Here we use a dataset of XXX measurements from XXX specimens of XXX species to investigate and compare a range of different locomotor categorization schemes, phenotypic measurements, and methods for conditioning on size and incorporating intraspecific variation and phylogenetic covariation to determine which suite of metrics can provide the most reliable and accurate estimates of locomotor mode, particularly climbing.
+
+<br>
+
+# Outline
+
+## Introduction  
+
+Stuff here  
+
+## Methods  
+
+#### Measurements  
+
+#### Statistics  
+
+#### Fossil Predictions  
+
+## Results  
+
+
+## Discussion
+
+#### Summary of similarities and difference among methods
+
+#### Best practices given a particular data set   
+
+<br>
+<br>
+
+# Important Citations not to Forget!
+
+

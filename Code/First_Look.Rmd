@@ -7,6 +7,7 @@ Loading up the data for some preliminary analyses of the binary climb/no-climb c
 
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra)
+
 options(brms.backend = "cmdstanr")
 
 scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
@@ -145,3 +146,55 @@ for(i in fit_list2){
 }
 
 ```
+
+
+## First Look with Intraspecific Variation
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+#dat %>% group_by(Genus_species) %>% count() %>% arrange(desc(n))
+```
+
+Repeating above, but with Species as a group-level effect. 
+There are a total of 243 species, and 57 have more than one sample. 
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+priors = c(prior(normal(0, 1.5), class = Intercept),
+                prior(normal(0, 1.5), class = b),
+                prior(normal(0, 1.5), class = sd))
+#initial fit
+mm2 <- brm(
+  Loc_bin ~ Sl + log_Mass + (1 | Genus_species),
+  #Loc_bin ~ Sl + log_Mass,
+  family = bernoulli(),
+  prior = priors,
+  data = dat, cores = 4, refresh = 0, seed = 1234)
+
+varis <- colnames(dat)[19:93]
+
+fit_list <- vector(mode ="list", length = 77)
+
+for(i in varis){
+  fit_list[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)")),
+                         #formula=(paste0("Loc_bin ~", i, "+log_Mass")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         prior = priors,
+                         seed = 1234
+                         ) 
+}
+
+fit_list3 <- fit_list[78:152]
+rm(fit_list)
+```
+
+Plots
+```{r message = FALSE, warning=FALSE, cache=TRUE}
+for(i in fit_list3){
+ plots <- plot(conditional_effects(i), plot=F, points = T)[[1]]
+ print(plots + theme_bw())
+}
+```
+
