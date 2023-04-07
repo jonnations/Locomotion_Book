@@ -21,6 +21,8 @@ Stuff here
 
 #### Statistics  
 
+- Interesting point is how ratios relate to linear measurements + size. Do they ultimately do a decent job at addressing the question, even though they are not as effective? That could mean that in a pinch (e.g. only 1-2 bones available) ratios could still be useful. We should quantify this. 
+
 #### Fossil Predictions  
 
 ## Results  

@@ -169,7 +169,7 @@ ggplot(aes(x=Ppl, y = Probability)) +
   labs(subtitle = "log_humerus_length") + 
   theme_bw() +
   ylim(0, 1) +
-  theme( panel.grid.major = element_blank(), 
+  theme( #panel.grid.major = element_blank(), 
          #panel.grid.minor = element_blank(),
          strip.background = element_blank(),
          panel.border = element_rect(colour = "black", 
@@ -199,7 +199,7 @@ ggplot(aes(x=Ppl, y = Probability)) +
   labs(subtitle = "log_humerus_length") + 
   theme_bw() +
   ylim(0, 1) +
-  theme( panel.grid.major = element_blank(), 
+  theme( #panel.grid.major = element_blank(), 
          #panel.grid.minor = element_blank(),
          strip.background = element_blank(),
          panel.border = element_rect(colour = "black", 
