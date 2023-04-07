@@ -1,0 +1,236 @@
+---
+title: "Interactions between Mass and Phenotype"
+output: html_notebook
+---
+
+## Does the relationship between phenotype and locomotion fluctuate with mass?
+
+A long-standing question of interest to 10 people on the planet, 3 of them being on this project, is how the relationship between phenotype and diet is mediated by body size. For example, elongated digits may predict climbing in medium to larger sized mammals, but not be informative for smaller sized mammals. To precisely answer this question, we need to run an interaction model. My favorite interaction model example is plant growth, water, and light. Plants need light and water to grow. The effect of water on plant growth depends on the amount of light. You can perfectly water a plant in the dark and nothing will happen. There may be a critical level of light where water starts to have an impact on growth. The opposite is true; light is only helpful if there is water. This is what we are going to estimate with locomotion (plant growth), phenotype (water), and body size (light). In the Jenkins' hypothesis, we should not see much, if any, of an impact of phenotype on locomotion until a certain level of body size is reached. 
+
+I'll work though this using our log transformed mass, log transformed humerus length, and our binary climb/no-climb locomotion categories. 
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, tidybayes, patchwork)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+```
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
+                             Loc_mode_Ordinal == "A" ~ 2,
+                             Loc_mode_Ordinal == "Sc" ~ 3,
+                             Loc_mode_Ordinal == "T" ~ 4,
+                             Loc_mode_Ordinal == "Is" ~ 5,
+                             Loc_mode_Ordinal == "Sf" ~ 5,
+                             Loc_mode_Ordinal == "Ss" ~ 6,
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(log_Mass, .before = Skl) %>%
+  
+#################
+#Calculate G means
+#################
+  drop_na(Hl , Ul , Tl , Fl , Hsw , Fsw , Fdw , Fsw , Sl , Sh , Hdw, Mcl, Ppl, log_Mass) %>% 
+  mutate(gm1 = (Hl * Fl)^(1/2),
+         gm2 = (Hl * Hsw * Fl * Fsw)^(1/4),
+         gm3 = (Hl * Ul * Tl * Fl)^(1/4),
+         gm4 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Tmw)^(1/7),
+         gm5 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw )^(1/11),
+         gm6 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw * Mcl * Ppl)^(1/13),
+         lg_sh_h = Hl / gm6,
+         lg_sh_h2 = Hl / Mass_grams
+         ) %>% 
+  mutate_at(vars(17:71, 78:79), log) %>% 
+  mutate_at(vars(16:79), scale2)
+```
+
+Let's work with a model we understand then add the interaction
+I'm going to put some weakly regularizing priors on the covariates
+```{r message = FALSE, warning=FALSE}
+priors = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1.5), class = b))
+
+m1 <- brm(Loc_bin ~ Ppl + log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+
+m2 <- brm(Loc_bin ~ Ppl * log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+```
+
+```{r}
+plot(m1)
+plot(m2)
+```
+
+Very cool! Turns out there is a strong negative interaction between body mass and humerus length. 
+
+Let's plot these.
+
+```{r}
+int_plot <- function(mod, effect, effect2, title){
+conditions <- data.frame(log_Mass = c(-1.5, 0, 1.5))
+conditional_effects({{mod}}, 
+                          prob = 0.75, 
+                          conditions = conditions, 
+                          effects= {{effect}})[[1]] %>% 
+  #extract conditional effects data frame
+  as_tibble() %>% 
+  mutate(log_Mass = factor(log_Mass, 
+                                    levels = c("-1.5", "0", "1.5"),
+                                    labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
+  #rename the objects in the conditional effects df
+  rename(Probability = estimate__) %>% 
+ggplot(aes(x={{effect2}}, y = Probability)) +
+  geom_ribbon(aes(ymin = lower__, 
+                  ymax = upper__, 
+              alpha=0.2)) +
+  geom_line(size=0.4) +
+  facet_wrap(~ log_Mass, 
+             ncol = 3) +
+  labs(subtitle = {{title}}) +
+ # scico::scale_fill_scico_d(palette = "lajolla", 
+ #                           begin  = 0.3, 
+ #                           end = 0.95, 
+ #                           name = "Dietary\nImportance\nRank") +
+ # scico::scale_color_scico_d(palette = "lajolla", 
+ #                           begin  = 0.3, 
+ #                           end = 0.95, 
+ #                            name = "Dietary\nImportance\nRank") +
+  theme_classic() +
+  ylim(0, 1) +
+  guides(colour = guide_legend(reverse=T,
+                               title.theme = element_text(size = 7.5),
+                               override.aes = list(size = 1)),
+         fill = guide_legend(reverse=T,
+                             title.theme = element_text(size = 7.5),
+                             override.aes = list(size = 1))) + 
+  theme( panel.grid.major = element_blank(), 
+         panel.grid.minor = element_blank(),
+         strip.background = element_blank(),
+         strip.text.x = element_text(size = 6, margin=margin(b=0.9)),
+         panel.border = element_rect(colour = "black", 
+                                     fill = NA,
+                                     size = rel(0.8)),
+         axis.line = element_line(colour = "NA"),
+         axis.text.y = element_text(size=rel(0.5)),
+         axis.text.x = element_text(size=rel(0.5)),
+         axis.ticks = element_line(size = rel(0.25)),
+         axis.ticks.length =  unit(0.5, "pt"),
+         legend.text=element_text(size=rel(0.7)),
+         legend.key = element_rect(color = NA),
+         legend.key.size =    unit(.95, "lines"),
+         axis.title.y = element_text(size = 6, margin=margin(0,-2,0,-10)),
+         axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
+         plot.subtitle=element_text(size=8, margin=margin(-20,0,3.2,0)),
+         legend.box.margin = unit(c(-0.5, 0, 0, 0), "lines"),
+         plot.margin = unit(c(0.2, 0, 0.3, 0), "lines")
+         )
+}
+```
+
+
+```{r}
+conditions <- data.frame(log_Mass = c(-1.5, 0, 1.5))
+conditional_effects(m1, 
+                          prob = 0.75, 
+                          conditions = conditions, 
+                          effects= 'Ppl')[[1]] %>% 
+  #extract conditional effects data frame
+  as_tibble() %>% 
+    mutate(log_Mass = factor(log_Mass, 
+                                    levels = c("-1.5", "0", "1.5"),
+                                    labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
+  #rename the objects in the conditional effects df
+  rename(Probability = estimate__) %>%
+ggplot(aes(x=Ppl, y = Probability)) +
+  geom_ribbon(aes(ymin = lower__, 
+                  ymax = upper__), 
+              alpha=0.2) +
+  geom_line(size=0.4) +
+  facet_wrap(~ log_Mass, 
+             ncol = 3) +
+  labs(subtitle = "log_humerus_length") + 
+  theme_bw() +
+  ylim(0, 1) +
+  theme( panel.grid.major = element_blank(), 
+         #panel.grid.minor = element_blank(),
+         strip.background = element_blank(),
+         panel.border = element_rect(colour = "black", 
+                                     fill = NA,
+                                     size = rel(0.8)),
+         axis.line = element_line(colour = "NA")
+         ) -> p1
+
+conditional_effects(m2, 
+                          prob = 0.75, 
+                          conditions = conditions, 
+                          effects= 'Ppl')[[1]] %>% 
+  #extract conditional effects data frame
+  as_tibble() %>% 
+    mutate(log_Mass = factor(log_Mass, 
+                                    levels = c("-1.5", "0", "1.5"),
+                                    labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
+  #rename the objects in the conditional effects df
+  rename(Probability = estimate__) %>%
+ggplot(aes(x=Ppl, y = Probability)) +
+  geom_ribbon(aes(ymin = lower__, 
+                  ymax = upper__), 
+              alpha=0.2) +
+  geom_line(size=0.4) +
+  facet_wrap(~ log_Mass, 
+             ncol = 3) +
+  labs(subtitle = "log_humerus_length") + 
+  theme_bw() +
+  ylim(0, 1) +
+  theme( panel.grid.major = element_blank(), 
+         #panel.grid.minor = element_blank(),
+         strip.background = element_blank(),
+         panel.border = element_rect(colour = "black", 
+                                     fill = NA,
+                                     size = rel(0.8)),
+         axis.line = element_line(colour = "NA")
+         ) -> p2
+
+p1 / p2
+```
+
+```{r}
+plot(conditional_effects(m2, 
+                          prob = 0.75, 
+                          conditions = conditions, 
+                          effects= 'Hl',
+                         plot = F))[[1]]
+```
+
+```{r}
+plot(conditional_effects(m2))
+plot(conditional_effects(m1))
+```
+
+
+
+
+
+```{r}
+int_plot(m2, 
+         "Hl", Hl,
+         "log_humerus_length")
+```
+
