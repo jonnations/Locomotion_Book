@@ -1,6 +1,8 @@
 ---
 title: "Interactions between Mass and Phenotype"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ## Does the relationship between phenotype and locomotion fluctuate with mass?
@@ -211,7 +213,7 @@ ggplot(aes(x=Ppl, y = Probability)) +
 p1 / p2
 ```
 
-```{r}
+#```{r}
 plot(conditional_effects(m2, 
                           prob = 0.75, 
                           conditions = conditions, 
@@ -219,18 +221,18 @@ plot(conditional_effects(m2,
                          plot = F))[[1]]
 ```
 
-```{r}
+#```{r}
 plot(conditional_effects(m2))
 plot(conditional_effects(m1))
-```
+#```
 
 
 
 
 
-```{r}
+#```{r}
 int_plot(m2, 
          "Hl", Hl,
          "log_humerus_length")
-```
+#```
 
