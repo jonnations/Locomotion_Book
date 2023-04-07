@@ -96,7 +96,11 @@ Preliminary data analysis, looping over all of the variables to see which ones d
 These are [very]{.underline} preliminary, and the results will become more nuanced and probably more confusing, but it can at least give us a sense of which measurements are informative of climbing.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ```{r message=FALSE, warning=FALSE, cache=TRUE, include=FALSE}
+=======
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+>>>>>>> 6b17dabeddd9bc3ae49ba2fd4f1e42240a536368
 =======
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 >>>>>>> 6b17dabeddd9bc3ae49ba2fd4f1e42240a536368
