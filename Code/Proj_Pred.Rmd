@@ -1,0 +1,193 @@
+---
+title: "Projection Prediction"
+output: html_notebook
+---
+
+Predicting Categorical Locomotion classifications (6 rankings) using postcranial measurements. Models will also incorporate intraspecific variation and phylogenetic variation.
+
+## Preperation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr,  here,  tidybayes, projpred)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+```
+
+### Load data  
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
+                             Loc_mode_Ordinal == "A" ~ 2,
+                             Loc_mode_Ordinal == "Sc" ~ 3,
+                             Loc_mode_Ordinal == "T" ~ 4,
+                             Loc_mode_Ordinal == "Is" ~ 5,
+                             Loc_mode_Ordinal == "Sf" ~ 5,
+                             Loc_mode_Ordinal == "Ss" ~ 6,
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+  mutate_at(vars(17:71), log) %>% 
+  mutate_at(vars(16:93), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+
+
+# Binary
+
+Looping over all of the variables to see which ones do a good job predicting the binary tree vs. no-tree categorization
+
+#### Get Prior
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 <- get_prior(Loc_bin ~ log_Mass + Sl + Sh + Hl + Hsw + Hdw + Hpw + Hhw + Hdcw + Hhl + Uol + Ul + Rl + Pel + Il + Isl + Fl + Fhd + Fgh + Fsw + Fdw + Tpw + Tl + Tmw + Tdw + Fbl + Fbmw + Fbpw + Fbdw + Csw + Ccw + Cl + Ctl + Ctw + Cal + Anl + Al + Atw + Mcl + Mcw + Ppl + Ppw + Ipl + Ipw + Dpl + Dpw + Mtl + Mtw + Pppl + Pppw + Pipl + Pipw + Pdpl + Pdpw,
+           family = bernoulli(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      )
+    )
+```
+
+#### Binary Linear  
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+pj_bin_fit <- brm(Loc_bin ~ log_Mass + Sl + Sh + Hl + Hsw + Hdw + Hpw + Hhw + Hdcw + Hhl + Uol + Ul + Rl + Pel + Il + Isl + Fl + Fhd + Fgh + Fsw + Fdw + Tpw + Tl + Tmw + Tdw + Fbl + Fbmw + Fbpw + Fbdw + Csw + Ccw + Cl + Ctl + Ctw + Cal + Anl + Al + Atw + Mcl + Mcw + Ppl + Ppw + Ipl + Ipw + Dpl + Dpw + Mtl + Mtw + Pppl + Pppw + Pipl + Pipw + Pdpl + Pdpw,
+          family = bernoulli(),
+          data = dat, refresh = 0, chains = 3, cores = 3,
+          prior = p1)
+```
+
+```{r}
+pens <- c(0, rep(1,53))
+pj_bin_vs <- varsel(pj_bin_fit, penalty = pens, nterms_max = 54)
+```
+
+```{r}
+nn <- suggest_size(pj_bin_vs, stat = "elpd")
+( soltrms <- solution_terms(pj_bin_vs) )
+( soltrms_final <- head(soltrms, nn) )
+plot(pj_bin_vs, , stat = c("rmse", 'elpd'))
+```
+
+#### Binary Ratio 
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+p2 <- get_prior(Loc_bin  ~ log_Mass + SI  + HRI  + HPI  + HEB  + HHRI + HHW  + DI + OLI  + BI + IM + PRTI + MRI  + MANUS  + MANUS2 + IRI  + FRI  + FEB  + CI + TRI  + IRI  + PR + PES  + PES2,
+           family = bernoulli(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      ))
+#initial fit
+pj_bin_fit2 <- brm(Loc_bin ~ log_Mass + SI  + HRI  + HPI  + HEB  + HHRI + HHW  + DI + OLI  + BI + IM + PRTI + MRI  + MANUS  + MANUS2 + IRI  + FRI  + FEB  + CI + TRI  + IRI  + PR + PES  + PES2,
+          family = bernoulli(),
+          data = dat, refresh = 0, chains = 3, cores = 3,
+          prior = p2)
+```
+
+```{r}
+pens <- c(rep(1,23))
+pj_bin_vs2 <- varsel(
+  pj_bin_fit2, cores = 6, penalty = pens)
+```
+
+```{r}
+nn2 <- suggest_size(pj_bin_vs2, stat = "elpd")
+( soltrms <- solution_terms(pj_bin_vs2) )
+( soltrms_final <- head(soltrms, nn2) )
+plot(pj_bin_vs2, stat = c("rmse", 'elpd'))
+```
+
+## Binary Well-Sampled  
+
+everything has at least 95% sampled
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+p3 <- get_prior(Loc_bin  ~ log_Mass + MANUS + Ppl + Mcl + PRTI + TRI + Tmw + CI + FEB + Fdw + IM + Tl + FRI + Fl + Fsw + SI + Sh + Sl + BI + HEB + HRI + Hdw + Hl + Hsw + OLI + Rl + Ul + Uol,
+           family = bernoulli(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      ))
+#initial fit
+pj_bin_fit3 <- brm(Loc_bin ~ log_Mass + MANUS + Ppl + Mcl + PRTI + TRI + Tmw + CI + FEB + Fdw + IM + Tl + FRI + Fl + Fsw + SI + Sh + Sl + BI + HEB + HRI + Hdw + Hl + Hsw + OLI + Rl + Ul + Uol,
+          family = bernoulli(),
+          data = dat, refresh = 0, chains = 3, cores = 3,
+          prior = p3)
+```
+
+
+```{r}
+pens <- c(0, rep(1,27))
+pj_bin_vs3 <- varsel(
+  pj_bin_fit3,  penalty = pens)
+```
+
+```{r}
+nn3 <- suggest_size(pj_bin_vs3, stat = "elpd")
+( soltrms <- solution_terms(pj_bin_vs3) )
+( soltrms_final <- head(soltrms, nn3) )
+plot(pj_bin_vs3, stat = c("rmse", 'elpd'))
+```
+

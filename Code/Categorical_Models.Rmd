@@ -1,0 +1,263 @@
+---
+title: "Categorical Classification"
+output: html_notebook
+---
+
+Predicting Categorical Locomotion classifications (6 rankings) using postcranial measurements. Models will also incorporate intraspecific variation and phylogenetic variation.
+
+## Preperation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+```
+
+### Load data  
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
+                             Loc_mode_Ordinal == "A" ~ 2,
+                             Loc_mode_Ordinal == "Sc" ~ 3,
+                             Loc_mode_Ordinal == "T" ~ 4,
+                             Loc_mode_Ordinal == "Is" ~ 5,
+                             Loc_mode_Ordinal == "Sf" ~ 5,
+                             Loc_mode_Ordinal == "Ss" ~ 6,
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+  mutate_at(vars(17:71), log) %>% 
+  mutate_at(vars(16:93), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+### Fit Models 
+
+
+Looping over all of the variables to see which ones do a good job predicting the binary tree vs. no-tree categorization
+
+#### Get Prior
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 <- get_prior(Loc_mode_Categorical ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+  data2 = list(A = A),
+           family = categorical(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "sd" ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      )
+    )
+```
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+mm <- brm(Loc_mode_Categorical ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = categorical(),
+          data = dat, refresh = 0, chains = 3, cores = 3,
+          prior = p1)
+```
+
+```{r}
+plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]]
+```
+
+#### Loop
+
+```{r  message = FALSE, warning=FALSE, include = FALSE,}
+varis <- colnames(dat)[19:93]
+
+fit_list_c <- vector(mode ="list")
+
+for(i in varis){
+  fit_list_c[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = categorical(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 3,
+                         chains = 3,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
+}
+
+#fit_list2 <- fit_list[78:152]
+#rm(fit_list)
+```
+
+```{r message = FALSE, warning=FALSE}
+for(i in fit_list_c){
+ plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = F)[[1]]
+ print(plots + theme_bw())
+}
+
+```
+
+
+
+
+
+
+#```{r message = FALSE, warning=FALSE}
+tst1 <- update(mm, 
+               formula=Loc_bin ~ MANUS + MANUS2 + Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+                        family = bernoulli(),
+                        newdata=dat,
+                        refresh = 0,
+                        cores = 4,
+                            data2 = list(A = A)
+                         )
+
+tst2 <- update(mm, 
+               formula=Loc_bin ~ MANUS +  Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+                        family = bernoulli(),
+                        newdata=dat,
+                        refresh = 0,
+                        cores = 4,
+                            data2 = list(A = A)
+                         )
+```
+
+#```{r}
+loo(tst2, fit_list$MANUS)
+```
+\
+
+
+#```{r}
+d1 <- bind_rows(
+  as_draws_df(fit_list$Hl) %>% select(b_Hl) %>% gather(var, val),
+  as_draws_df(fit_list$Uol) %>% select(b_Uol) %>% gather(var, val),
+    as_draws_df(fit_list$Hhl) %>% select(b_Hhl) %>% gather(var, val),
+    as_draws_df(fit_list$Ul) %>% select(b_Ul) %>% gather(var, val),
+    as_draws_df(fit_list$Rl) %>% select(b_Rl) %>% gather(var, val),
+    as_draws_df(fit_list$Anl) %>% select(b_Anl) %>% gather(var, val),
+    as_draws_df(fit_list$Mtl) %>% select(b_Mtl) %>% gather(var, val),
+  as_draws_df(fit_list$Ppl) %>% select(b_Ppl) %>% gather(var, val),
+  as_draws_df(fit_list$Ipl) %>% select(b_Ipl) %>% gather(var, val),
+  as_draws_df(fit_list$HPI) %>% select(b_HPI) %>% gather(var, val),
+    as_draws_df(fit_list$HEB) %>% select(b_HEB) %>% gather(var, val),
+  as_draws_df(fit_list$OLI) %>% select(b_OLI) %>% gather(var, val),
+  as_draws_df(fit_list$MANUS) %>% select(b_MANUS) %>% gather(var, val),
+    as_draws_df(fit_list$MANUS2) %>% select(b_MANUS2) %>% gather(var, val),
+  as_draws_df(fit_list$FRI) %>% select(b_FRI) %>%
+    gather(var, val),
+  as_draws_df(fit_list$FEB) %>% select(b_FEB) %>% gather(var, val),
+  as_draws_df(fit_list$CI) %>% select(b_CI) %>% gather(var, val),
+  as_draws_df(fit_list$PR) %>% select(b_PR) %>% gather(var, val),
+  as_draws_df(fit_list$PES) %>% select(b_PES) %>% gather(var, val),
+  as_draws_df(fit_list$PES2) %>% select(b_PES2) %>% gather(var, val)
+  ) %>% 
+  mutate(val = inv_logit_scaled(val)) 
+
+nms <- d1 %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+
+
+d1 %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var)) +   stat_halfeye(.width = c(.66, .95)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + theme_tidybayes()
+```
+
+#```{r}
+d1 <- bind_rows(
+   as_draws_df(fit_list$Hl) %>% select(b_Hl, b_log_Mass) %>% gather(var, val),
+    as_draws_df(fit_list$Uol) %>% select(b_Uol) %>% gather(var, val),
+    as_draws_df(fit_list$Hhl) %>% select(b_Hhl) %>% gather(var, val),
+    as_draws_df(fit_list$Ul) %>% select(b_Ul) %>% gather(var, val),
+    as_draws_df(fit_list$Rl) %>% select(b_Rl) %>% gather(var, val),
+    as_draws_df(fit_list$Anl) %>% select(b_Anl) %>% gather(var, val),
+    as_draws_df(fit_list$Mtl) %>% select(b_Mtl) %>% gather(var, val),
+    as_draws_df(fit_list$Ppl) %>% select(b_Ppl) %>% gather(var, val),
+    as_draws_df(fit_list$Ipl) %>% select(b_Ipl) %>% gather(var, val),
+    as_draws_df(fit_list$HPI) %>% select(b_HPI) %>% gather(var, val),
+    as_draws_df(fit_list$HEB) %>% select(b_HEB) %>% gather(var, val),
+    as_draws_df(fit_list$OLI) %>% select(b_OLI) %>% gather(var, val),
+    as_draws_df(fit_list$MANUS) %>% select(b_MANUS) %>% gather(var, val),
+    as_draws_df(fit_list$MANUS2) %>% select(b_MANUS2) %>% gather(var, val),
+    as_draws_df(fit_list$FRI) %>% select(b_FRI) %>% gather(var, val),
+    as_draws_df(fit_list$FEB) %>% select(b_FEB) %>% gather(var, val),
+    as_draws_df(fit_list$CI) %>% select(b_CI) %>% gather(var, val),
+    as_draws_df(fit_list$PR) %>% select(b_PR) %>% gather(var, val),
+    as_draws_df(fit_list$PES) %>% select(b_PES) %>% gather(var, val),
+    as_draws_df(fit_list$PES2) %>% select(b_PES2) %>% gather(var, val),
+    as_draws_df(fit_list$Fbdw) %>% select(b_Fbdw) %>% gather(var, val)
+  ) %>% 
+  mutate(val = inv_logit_scaled(val)) 
+
+nms <- d1 %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+
+
+d1 %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var)) +   stat_pointinterval(.width = c(.66, .95)) +
+  geom_vline(xintercept = 0.5, linetype = 3)
+```
+
+

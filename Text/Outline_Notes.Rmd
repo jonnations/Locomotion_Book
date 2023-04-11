@@ -1,6 +1,9 @@
 ---
 title: "Outlines and Notes for book chapter"
-output: html_notebook
+output:
+  html_document:
+    toc: true
+    toc_depth: 6
 ---
 
 ## Abstract / Summary
@@ -11,32 +14,36 @@ Locomotor variation has played a key role in the evolution of mammals, and the v
 
 # Outline
 
-## Introduction  
+### Introduction  
 
 Stuff here  
 
-## Methods  
+### Methods  
 
-#### Measurements  
+##### Measurements  
 
-#### Statistics  
+##### Statistics  
 
 - Interesting point is how ratios relate to linear measurements + size. Do they ultimately do a decent job at addressing the question, even though they are not as effective? That could mean that in a pinch (e.g. only 1-2 bones available) ratios could still be useful. We should quantify this. 
 
-#### Fossil Predictions  
+##### Fossil Predictions  
 
-## Results  
+- In addition to fossils, are there some bizarre extant mammals that we could test? Maybe Sommeromys? And how would Rhyncomys & Echiothrix fare in the predictions? 
+
+### Results  
 
 
-## Discussion
+### Discussion
 
-#### Summary of similarities and difference among methods
+##### Summary of similarities and difference among methods
 
-#### Best practices given a particular data set   
+##### Best practices given a particular data set   
 
 <br>
 <br>
 
-# Important Citations not to Forget!
+## Important Citations not to Forget!
+<br>
+<br>
 
 
