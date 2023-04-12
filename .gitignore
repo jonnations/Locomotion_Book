@@ -10,3 +10,6 @@
 *.knit.md
 #htmls
 *.html
+#data
+*.rds
+*.Rds

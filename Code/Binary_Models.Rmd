@@ -25,15 +25,25 @@ here()
 dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
   select(!NOTES) %>% 
 # Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
-                             Loc_mode_Ordinal == "A" ~ 2,
-                             Loc_mode_Ordinal == "Sc" ~ 3,
-                             Loc_mode_Ordinal == "T" ~ 4,
-                             Loc_mode_Ordinal == "Is" ~ 5,
-                             Loc_mode_Ordinal == "Sf" ~ 5,
-                             Loc_mode_Ordinal == "Ss" ~ 6,
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ "G",
+                             Loc_mode_Ordinal == "A" ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T" ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
                              TRUE ~ NA),
          Loc_Ord = as.ordered(Loc_Ord),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "Sf",
+                              Loc_mode_Ordinal == "Sf" ~ "Sf",
+                              Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord2),
          Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
                              Loc_mode_Bindary == "Tree" ~ 1,
                              TRUE ~ NA
@@ -43,6 +53,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          log_Mass = log(Mass_grams)) %>% 
     relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
   relocate(log_Mass, .before = Skl) %>% 
 #################
 #Calculate Indices!
@@ -73,8 +84,12 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
          ) %>% 
-  mutate_at(vars(17:71), log) %>% 
-  mutate_at(vars(16:93), scale2)
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
+  relocate(gm, .before = log_Mass) #%>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
 
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 ```
@@ -123,7 +138,7 @@ mm <- brm(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_sty
 
 #### Loop
 
-```{r  message = FALSE, warning=FALSE, include = FALSE,}
+```{r  message = FALSE, warning=FALSE, include = FALSE, cache = TRUE}
 varis <- colnames(dat)[19:93]
 
 fit_list <- vector(mode ="list")
@@ -178,7 +193,7 @@ loo(tst2, fit_list$MANUS)
 \
 
 
-```{r}
+```{r cache = TRUE}
 d1 <- bind_rows(
   as_draws_df(fit_list$Hl) %>% select(b_Hl) %>% gather(var, val),
   as_draws_df(fit_list$Uol) %>% select(b_Uol) %>% gather(var, val),

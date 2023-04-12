@@ -10,7 +10,7 @@ Predicting Ordinal Locomotion classifications (6 rankings) using postcranial mea
 ### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes)
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork)
 
 options(brms.backend = "cmdstanr")
 
@@ -21,19 +21,32 @@ here()
 ```
 
 ### Load data  
+### Load data  
 ```{r message = FALSE, warning=FALSE}
 dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
   select(!NOTES) %>% 
 # Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
-                             Loc_mode_Ordinal == "A" ~ 2,
-                             Loc_mode_Ordinal == "Sc" ~ 3,
-                             Loc_mode_Ordinal == "T" ~ 4,
-                             Loc_mode_Ordinal == "Is" ~ 5,
-                             Loc_mode_Ordinal == "Sf" ~ 5,
-                             Loc_mode_Ordinal == "Ss" ~ 6,
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
                              TRUE ~ NA),
          Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "Sf",
+                              Loc_mode_Ordinal == "Sf" ~ "Sf",
+                              Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("G","A","Sc","T","Sf","Ss")),
          Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
                              Loc_mode_Bindary == "Tree" ~ 1,
                              TRUE ~ NA
@@ -43,6 +56,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          log_Mass = log(Mass_grams)) %>% 
     relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
   relocate(log_Mass, .before = Skl) %>% 
 #################
 #Calculate Indices!
@@ -73,8 +87,12 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
          ) %>% 
-  mutate_at(vars(17:71), log) %>% 
-  mutate_at(vars(16:93), scale2)
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
 
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 ```
@@ -97,7 +115,7 @@ Looping over all of the variables to see which ones do a good job predicting the
 
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-p1 <- get_prior(Loc_Ord ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+p1 <- get_prior(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
   data2 = list(A = A),
            family = cumulative(),
            data = dat) %>% 
@@ -114,26 +132,36 @@ p1 <- get_prior(Loc_Ord ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Uph
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_Ord ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = cumulative(),
           data = dat, refresh = 0, cores = 4,
           prior = p1)
 ```
 
+
+
 ```{r}
-plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]]
+
+pls = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
 ```
 
-#### Loop
+```{r}
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#7570b3')
+plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+```
+
+#### Log Mass Loop
 
 ```{r  message = FALSE, warning=FALSE, include = FALSE,}
-varis <- colnames(dat)[19:93]
+varis <- colnames(dat)[19:95]
 
-fit_list <- vector(mode ="list")
+list_o_lm <- vector(mode ="list")
 
 for(i in varis){
-  fit_list[[i]]<- update(mm,
+  list_o_lm[[i]]<- update(mm,
                          formula=(paste0("Loc_Ord ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = cumulative(),
                          newdata=dat,
@@ -144,47 +172,113 @@ for(i in varis){
                          ) 
 }
 
-#fit_list2 <- fit_list[78:152]
-#rm(fit_list)
+list_o_lm %>% write_rds(here("Data","ordinal_lm_models.Rds"))
 ```
 
+
+#### Geometric Mean Loop
+
+```{r  message = FALSE, warning=FALSE, include = FALSE,}
+varis <- colnames(dat)[19:95]
+
+list_o_gm <- vector(mode ="list")
+
+for(i in varis){
+  list_o_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
+}
+
+list_o_gm %>% write_rds(here("Data","ordinal_gm_models.Rds"))
+```
+
+
+
 ```{r message = FALSE, warning=FALSE}
-for(i in fit_list){
- plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = F)[[1]]
+list_o_lm <- read_rds(here("Data","ordinal_lm_models.Rds"))
+list_o_gm <- read_rds(here("Data","ordinal_gm_models.Rds"))
+for(i in list_o_lm){
+ plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+ print(plots + theme_bw())
+}
+
+for(i in list_o_gm){
+ plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
  print(plots + theme_bw())
 }
 
 ```
 
+```{r}
+p1 <- plot(conditional_effects(list_o_lm$FEB, categorical = TRUE), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1)
 
+p2 <- plot(conditional_effects(list_o_gm$FEB, categorical = TRUE), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
 
-
-
-
-```{r message = FALSE, warning=FALSE}
-tst1 <- update(mm, 
-               formula=Loc_bin ~ MANUS + MANUS2 + Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-                        family = bernoulli(),
-                        newdata=dat,
-                        refresh = 0,
-                        cores = 4,
-                            data2 = list(A = A)
-                         )
-
-tst2 <- update(mm, 
-               formula=Loc_bin ~ MANUS +  Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-                        family = bernoulli(),
-                        newdata=dat,
-                        refresh = 0,
-                        cores = 4,
-                            data2 = list(A = A)
-                         )
+p1 + p2
 ```
+How to plot the effect sizes?
+loop <- not working, problem with paste,  need to try purrr?
+```{r}
+d1 <- bind_rows(
+  as_draws_df(list_o_lm$IM) %>% select(b_IM) %>% gather(var, val),
+) %>% 
+  mutate(val = inv_logit_scaled(val)) 
+
+lil_lst <- list_o_lm[1:3]
+
+gm_p <- data.frame()
+
+for(i in lil_lst){
+  gmp[[i]]<- bind_rows(
+  as_draws_df(paste("list_o_lm$",i)) %>% select(paste("b_",i)) #%>% gather(var, val),
+)
+} 
+  %>% 
+  mutate(val = inv_logit_scaled(val))
+} 
+```
+
+    update(mm,
+                         formula=(paste0("Loc_Ord ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
+
+d1 %>% 
+  #mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var)) +   stat_halfeye(.width = c(.66, .95)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + theme_tidybayes()
+
+
+
 
 ```{r}
-loo(tst2, fit_list$MANUS)
+loo(list_o_gm$MANUS, list_o_lm$MANUS)
+loo(list_o_gm$HPI, list_o_lm$HPI)
+loo(list_o_gm$FRI, list_o_lm$FRI)
+loo(list_o_gm$OLI, list_o_lm$OLI)
 ```
-\
+
+
+
 
 
 ```{r}
