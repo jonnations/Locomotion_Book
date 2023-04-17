@@ -5,6 +5,9 @@ output:
     toc: true
     toc_depth: 6
 ---
+# Notes:
+How much of the locomotor inference is driven by extremes? 
+
 
 ## Abstract / Summary
 
