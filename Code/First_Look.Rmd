@@ -5,31 +5,46 @@ output: html_document
 
 Loading up the data for some preliminary analyses of the binary climb/no-climb categories.
 
+### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra)
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
 
 options(brms.backend = "cmdstanr")
 
 scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
 ```
 
-#### Load data
-
-You can see the indices I add in the code below. Note that the indices are all caps, and the linear measurements have lowercase letters after the first.
-
+### Load data  
+### Load data  
 ```{r message = FALSE, warning=FALSE}
 dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
   select(!NOTES) %>% 
 # Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ 1,
-                             Loc_mode_Ordinal == "A" ~ 2,
-                             Loc_mode_Ordinal == "Sc" ~ 3,
-                             Loc_mode_Ordinal == "T" ~ 4,
-                             Loc_mode_Ordinal == "Is" ~ 5,
-                             Loc_mode_Ordinal == "Sf" ~ 5,
-                             Loc_mode_Ordinal == "Ss" ~ 6,
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
                              TRUE ~ NA),
          Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "Sf",
+                              Loc_mode_Ordinal == "Sf" ~ "Sf",
+                              Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("G","A","Sc","T","Sf","Ss")),
          Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
                              Loc_mode_Bindary == "Tree" ~ 1,
                              TRUE ~ NA
@@ -39,6 +54,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          log_Mass = log(Mass_grams)) %>% 
     relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
   relocate(log_Mass, .before = Skl) %>% 
 #################
 #Calculate Indices!
@@ -69,8 +85,14 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
          ) %>% 
-  mutate_at(vars(17:71), log) %>% 
-  mutate_at(vars(16:93), scale2)
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
 ```
 
 What does the missing data look like?\
@@ -79,7 +101,7 @@ You can scroll through the table below to see
 ```{r  echo = FALSE}
 n = nrow(dat)
 
-dat %>% select(16:93) %>% 
+dat %>% select(19:95) %>% 
   summarise_all((~ sum(is.na(.)))) %>% 
   mutate_if(is.double, ~ n - .) %>% 
   pivot_longer(everything(), names_to = "measurement", values_to = "count_missing") %>% arrange(desc(count_missing), measurement) %>% 

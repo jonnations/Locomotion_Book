@@ -10,7 +10,7 @@ Predicting binary climbing classifications (tree vs. ground) using postcranial m
 ### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes)
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
 
 options(brms.backend = "cmdstanr")
 
@@ -18,6 +18,8 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
 
 here::i_am("README.md")
 here()
+
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#7570b3')
 ```
 
 ### Load data  
@@ -25,15 +27,16 @@ here()
 dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
   select(!NOTES) %>% 
 # Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G" ~ "G",
-                             Loc_mode_Ordinal == "A" ~ "A",
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
                              Loc_mode_Ordinal == "Sc" ~ "Sc",
-                             Loc_mode_Ordinal == "T" ~ "T",
+                             Loc_mode_Ordinal == "T"  ~ "T",
                              Loc_mode_Ordinal == "Is" ~ "Is",
                              Loc_mode_Ordinal == "Sf" ~ "Sf",
                              Loc_mode_Ordinal == "Ss" ~ "Ss",
                              TRUE ~ NA),
          Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
          # Combining the Intersurface and Semifossorial
          Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
                               Loc_mode_Ordinal == "A" ~ "A",
@@ -43,7 +46,8 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
                               Loc_mode_Ordinal == "Sf" ~ "Sf",
                               Loc_mode_Ordinal == "Ss" ~ "Ss",
                              TRUE ~ NA),
-         Loc_Ord = as.ordered(Loc_Ord2),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("G","A","Sc","T","Sf","Ss")),
          Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
                              Loc_mode_Bindary == "Tree" ~ 1,
                              TRUE ~ NA
@@ -87,7 +91,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
     # geometric mean
   drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
   mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
-  relocate(gm, .before = log_Mass) #%>% 
+  relocate(gm, .before = log_Mass) %>% 
   mutate_at(vars(19:73), log) %>% 
   mutate_at(vars(17:95), scale2)
 
@@ -103,7 +107,7 @@ tr <- keep.tip(tr, spp_obs)
 A <- ape::vcv.phylo(tr, corr = TRUE)
 ```
 
-### Fit Models 
+### Log Mass
 
 
 Looping over all of the variables to see which ones do a good job predicting the binary tree vs. no-tree categorization
@@ -112,18 +116,22 @@ Looping over all of the variables to see which ones do a good job predicting the
 
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-p1 <- get_prior(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-  data2 = list(A = A),
-           family = bernoulli(),
-           data = dat) %>% 
-    mutate(
-      prior = case_when(
-        class == "b"  ~ "normal(0, 1)",
-        class == "sd" ~ "normal(0, 1)",
-        class == "Intercept" ~ "normal(0, 1)",
-        TRUE ~ prior
-      )
-    )
+#p1 <- get_prior(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  #(1|gr(Taxon_Upham_style, cov = A)),
+#  data2 = list(A = A),
+#           family = bernoulli(),
+#           data = dat) %>% 
+#    mutate(
+#      prior = case_when(
+#        class == "b"  ~ "normal(0, 1)",
+#        class == "sd" ~ "normal(0, 1)",
+#        class == "Intercept" ~ "normal(0, 1)",
+#        TRUE ~ prior
+#      )
+#    )
+
+p1 = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 1), class = sd))
 ```
 
 
@@ -136,15 +144,15 @@ mm <- brm(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_sty
           prior = p1)
 ```
 
-#### Loop
+#### Log Mass Loop
 
-```{r  message = FALSE, warning=FALSE, include = FALSE, cache = TRUE}
-varis <- colnames(dat)[19:93]
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+varis <- colnames(dat)[19:95]
 
-fit_list <- vector(mode ="list")
+list_b_lm <- vector(mode ="list")
 
 for(i in varis){
-  fit_list[[i]]<- update(mm,
+  list_b_lm[[i]]<- update(mm,
                          formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = bernoulli(),
                          newdata=dat,
@@ -155,115 +163,151 @@ for(i in varis){
                          ) 
 }
 
-#fit_list2 <- fit_list[78:152]
-#rm(fit_list)
+list_b_lm %>% write_rds(here("Data","binary_lm_models.Rds"))
 ```
 
-```{r message = FALSE, warning=FALSE}
-for(i in fit_list){
- plots <- plot(conditional_effects(i), plot=F, points = T)[[1]]
- print(plots + theme_bw())
+## Geometric Mean Loop
+
+```{r  message = FALSE, warning=FALSE, include = FALSE, cache = TRUE}
+varis <- colnames(dat)[19:95]
+
+list_b_gm <- vector(mode ="list")
+
+for(i in varis){
+  list_b_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
 }
 
+list_b_gm %>% write_rds(here("Data","binary_gm_models.Rds"))
 ```
+
+
+```{r}
+list_b_lm <- read_rds(here("Data","binary_lm_models.Rds"))
+list_b_gm <- read_rds(here("Data","binary_gm_models.Rds"))
+```
+## Quad plot 
+### Differences between indices and lm
+
+```{r}
+p1 <- plot(conditional_effects(list_b_lm$OLI, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 5)
+
+p2 <- plot(conditional_effects(list_b_lm$MANUS, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p3 <- plot(conditional_effects(list_b_lm$Uol, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p4 <- plot(conditional_effects(list_b_lm$Ppl, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+(p1 + p2) / (p3 + p4) + plot_layout(guides = "collect") & theme_bw()
+
+ggsave( here("Plots","Bin_compare_1.pdf"))
+```
+
+
+
+### Compare GM to LM
+```{r}
+p1g <- plot(conditional_effects(list_b_gm$OLI, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 5)
+
+p2g <- plot(conditional_effects(list_b_gm$MANUS, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p3g <- plot(conditional_effects(list_b_gm$Uol, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p4g <- plot(conditional_effects(list_b_gm$Ppl, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+(p1 + p1g) / (p3 + p3g) / (p2 + p2g) / (p4 + p4g) + plot_layout(guides = "collect") + plot_annotation(title = "log mass L column, Geo Mean R column")& theme_bw()
+
+
+ggsave( here("Plots","Bin_compare_2.pdf"), height = 10)
+```
+
+```{r}
+plot(conditional_effects(list_b_lm$HPI, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 5) + theme_bw()
+```
+
+
+#### Plot all effect sizes in one forest plot
+Here i'm focusing on the slope of the phenotype
+
 
 ```{r message = FALSE, warning=FALSE}
-tst1 <- update(mm, 
-               formula=Loc_bin ~ MANUS + MANUS2 + Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-                        family = bernoulli(),
-                        newdata=dat,
-                        refresh = 0,
-                        cores = 4,
-                            data2 = list(A = A)
-                         )
+# Function -> pulls the 7th column, slope, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[2] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
 
-tst2 <- update(mm, 
-               formula=Loc_bin ~ MANUS +  Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-                        family = bernoulli(),
-                        newdata=dat,
-                        refresh = 0,
-                        cores = 4,
-                            data2 = list(A = A)
-                         )
+#run  model
+lms <- map(list_b_lm, cln) %>% 
+  bind_rows()
+
+#list of slopes in order of means
+nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+# New df to demonstrate which vars don't overlap 0 at 89%
+sigs <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>% 
+  mutate(sigs = case_when(
+    .lower > 0 & .upper > 0 ~ "sig",
+    .lower < 0 & .upper < 0 ~ "sig",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% select(var, sigs)
+
 ```
 
 ```{r}
-loo(tst2, fit_list$MANUS)
-```
-\
-
-
-```{r cache = TRUE}
-d1 <- bind_rows(
-  as_draws_df(fit_list$Hl) %>% select(b_Hl) %>% gather(var, val),
-  as_draws_df(fit_list$Uol) %>% select(b_Uol) %>% gather(var, val),
-    as_draws_df(fit_list$Hhl) %>% select(b_Hhl) %>% gather(var, val),
-    as_draws_df(fit_list$Ul) %>% select(b_Ul) %>% gather(var, val),
-    as_draws_df(fit_list$Rl) %>% select(b_Rl) %>% gather(var, val),
-    as_draws_df(fit_list$Anl) %>% select(b_Anl) %>% gather(var, val),
-    as_draws_df(fit_list$Mtl) %>% select(b_Mtl) %>% gather(var, val),
-  as_draws_df(fit_list$Ppl) %>% select(b_Ppl) %>% gather(var, val),
-  as_draws_df(fit_list$Ipl) %>% select(b_Ipl) %>% gather(var, val),
-  as_draws_df(fit_list$HPI) %>% select(b_HPI) %>% gather(var, val),
-    as_draws_df(fit_list$HEB) %>% select(b_HEB) %>% gather(var, val),
-  as_draws_df(fit_list$OLI) %>% select(b_OLI) %>% gather(var, val),
-  as_draws_df(fit_list$MANUS) %>% select(b_MANUS) %>% gather(var, val),
-    as_draws_df(fit_list$MANUS2) %>% select(b_MANUS2) %>% gather(var, val),
-  as_draws_df(fit_list$FRI) %>% select(b_FRI) %>%
-    gather(var, val),
-  as_draws_df(fit_list$FEB) %>% select(b_FEB) %>% gather(var, val),
-  as_draws_df(fit_list$CI) %>% select(b_CI) %>% gather(var, val),
-  as_draws_df(fit_list$PR) %>% select(b_PR) %>% gather(var, val),
-  as_draws_df(fit_list$PES) %>% select(b_PES) %>% gather(var, val),
-  as_draws_df(fit_list$PES2) %>% select(b_PES2) %>% gather(var, val)
-  ) %>% 
-  mutate(val = inv_logit_scaled(val)) 
-
-nms <- d1 %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
-
-
-
-d1 %>% 
-  mutate(var = fct_relevel(var, nms$var)) %>% 
-  ggplot(aes(x = val, y = var)) +   stat_halfeye(.width = c(.66, .95)) +
-  geom_vline(xintercept = 0.5, linetype = 3) + theme_tidybayes()
+sigs %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
 ```
 
+#### Forest Plots
 ```{r}
-d1 <- bind_rows(
-   as_draws_df(fit_list$Hl) %>% select(b_Hl, b_log_Mass) %>% gather(var, val),
-    as_draws_df(fit_list$Uol) %>% select(b_Uol) %>% gather(var, val),
-    as_draws_df(fit_list$Hhl) %>% select(b_Hhl) %>% gather(var, val),
-    as_draws_df(fit_list$Ul) %>% select(b_Ul) %>% gather(var, val),
-    as_draws_df(fit_list$Rl) %>% select(b_Rl) %>% gather(var, val),
-    as_draws_df(fit_list$Anl) %>% select(b_Anl) %>% gather(var, val),
-    as_draws_df(fit_list$Mtl) %>% select(b_Mtl) %>% gather(var, val),
-    as_draws_df(fit_list$Ppl) %>% select(b_Ppl) %>% gather(var, val),
-    as_draws_df(fit_list$Ipl) %>% select(b_Ipl) %>% gather(var, val),
-    as_draws_df(fit_list$HPI) %>% select(b_HPI) %>% gather(var, val),
-    as_draws_df(fit_list$HEB) %>% select(b_HEB) %>% gather(var, val),
-    as_draws_df(fit_list$OLI) %>% select(b_OLI) %>% gather(var, val),
-    as_draws_df(fit_list$MANUS) %>% select(b_MANUS) %>% gather(var, val),
-    as_draws_df(fit_list$MANUS2) %>% select(b_MANUS2) %>% gather(var, val),
-    as_draws_df(fit_list$FRI) %>% select(b_FRI) %>% gather(var, val),
-    as_draws_df(fit_list$FEB) %>% select(b_FEB) %>% gather(var, val),
-    as_draws_df(fit_list$CI) %>% select(b_CI) %>% gather(var, val),
-    as_draws_df(fit_list$PR) %>% select(b_PR) %>% gather(var, val),
-    as_draws_df(fit_list$PES) %>% select(b_PES) %>% gather(var, val),
-    as_draws_df(fit_list$PES2) %>% select(b_PES2) %>% gather(var, val),
-    as_draws_df(fit_list$Fbdw) %>% select(b_Fbdw) %>% gather(var, val)
-  ) %>% 
-  mutate(val = inv_logit_scaled(val)) 
 
-nms <- d1 %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
-
-
-
-d1 %>% 
+lms %>% right_join(sigs, by = 'var') %>% 
   mutate(var = fct_relevel(var, nms$var)) %>% 
-  ggplot(aes(x = val, y = var)) +   stat_pointinterval(.width = c(.66, .95)) +
-  geom_vline(xintercept = 0.5, linetype = 3)
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+ggsave(here("Plots","Bin_sigs.pdf"), height = 15)
+
+lms %>% right_join(sigs, by = 'var') %>% 
+  filter(sigs == "sig") %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + 
+  theme_bw()
+
+ggsave(here("Plots","Bin_sigs2.pdf"), height = 10)
 ```
+
+
 
 
 
