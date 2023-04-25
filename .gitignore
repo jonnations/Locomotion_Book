@@ -13,3 +13,5 @@
 #data
 *.rds
 *.Rds
+#pdf plots (png ok)
+*.pdf
