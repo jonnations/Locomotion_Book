@@ -27,7 +27,7 @@ list_o2_gm <- read_rds(here("Data","ordinal2_gm_models.Rds"))
 
 some colors
 ```{r}
-pal = c('#66a61e', '#7570b3',  '#e6ab02', '#62361B')
+pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
 
 binpal = c('#66a61e','#5e1ea6')#5e1ea6
 cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
