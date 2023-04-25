@@ -1,9 +1,17 @@
 ---
 title: "Ordinal Classification"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
-Predicting Ordinal Locomotion classifications with 4 rankings using postcranial measurements. Models will also incorporate intraspecific variation and phylogenetic variation.
+Predicting Ordinal Locomotion classifications with 4 rankings using postcranial measurements:
+  - Arboreal
+  - Scansorial
+  - Terrestrial
+  - Burrowing
+
+Models will also incorporate intraspecific variation and phylogenetic variation.
 
 Same as `Ordinal_Models.Rmd` but with 4 categories:  
 
@@ -120,7 +128,7 @@ Looping over all of the variables to see which ones do a good job predicting the
 
 #### Get Prior
 
-```{r message = FALSE, warning=FALSE, include = FALSE}
+```{r message = FALSE, warning=FALSE, results = 'hide'}
 
 p1 <- get_prior(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
   data2 = list(A = A),
@@ -137,7 +145,7 @@ p1 <- get_prior(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Up
 ```
 
 
-```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+```{r message = FALSE, warning=FALSE,  cache=TRUE, results = 'hide'}
 #initial fit
 mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
@@ -149,12 +157,11 @@ mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_st
 
 
 ```{r}
-
+pal = c('#66a61e', '#7570b3', '#62361B',  '#e6ab02')
 cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
 ```
 
 ```{r}
-pal = c('#62361B',  '#e6ab02', '#66a61e', '#7570b3')
 plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]] +
   scale_fill_manual(values = pal) +
   scale_color_manual(values = pal)
@@ -162,7 +169,7 @@ plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]] +
 
 #### Log Mass Loop
 
-```{r  message = FALSE, warning=FALSE, include = FALSE,}
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 varis <- colnames(dat)[19:95]
 
 list_o2_lm <- vector(mode ="list")
@@ -185,7 +192,7 @@ list_o2_lm %>% write_rds(here("Data","ordinal2_lm_models.Rds"))
 
 #### Geometric Mean Loop
 
-```{r  message = FALSE, warning=FALSE, include = FALSE}
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 varis <- colnames(dat)[19:95]
 
 list_o2_gm <- vector(mode ="list")
@@ -206,147 +213,9 @@ list_o2_gm %>% write_rds(here("Data","ordinal2_gm_models.Rds"))
 ```
 
 
-### Plots 
-
-#### Just for kicks, probably good to skip this.
-
-```{r}
-list_o2_lm <- read_rds(here("Data","ordinal2_lm_models.Rds"))
-list_o2_gm <- read_rds(here("Data","ordinal2_gm_models.Rds"))
-```
-
-```{r message = FALSE, warning=FALSE}
-#for(i in list_o_lm){
-# plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
-#  scale_fill_manual(values = pal) +
-#  scale_color_manual(values = pal) + ylim(0,1)
-# print(plots + theme_bw())
-#}
-
-#for(i in list_o_gm){
-# plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
-#  scale_fill_manual(values = pal) +
-#  scale_color_manual(values = pal) + ylim(0,1)
-# print(plots + theme_bw()) 
-#}
-
-```
-
-### Four plots for comparisons 
-
-```{r}
-p1 <- plot(conditional_effects(list_o2_lm$OLI, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 4)
-
-p2 <- plot(conditional_effects(list_o2_lm$MANUS, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-p3 <- plot(conditional_effects(list_o2_lm$Uol, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-p4 <- plot(conditional_effects(list_o2_lm$Ppl, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-(p1 + p2) / (p3 + p4) + plot_layout(guides = "collect") + plot_annotation(title = "log mass L column, Geo Mean R column") & theme_bw()
-
-ggsave( here("Plots","Ord2_compare_1.pdf"))
-```
-
-```{r}
-p1g <- plot(conditional_effects(list_o2_gm$OLI, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 4)
-
-p2g <- plot(conditional_effects(list_o2_gm$MANUS, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-p3g <- plot(conditional_effects(list_o2_gm$Uol, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-p4g <- plot(conditional_effects(list_o2_gm$Ppl, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
-
-(p1 + p1g) / (p3 + p3g) / (p2 + p2g)  / (p4 + p4g) + plot_layout(guides = "collect") & theme_bw()
+## Model tuning 
 
 
-ggsave( here("Plots","Ord2_compare_2.pdf"), height = 10)
-```
-
-
-```{r}
-plot(conditional_effects(list_o2_lm$Hl, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal)+ ylim(0,1)  + theme_bw()
-```
-
-
-#### Plot all effect sizes in one forest plot
-Here i'm focusing on the slope of the phenotype
-
-
-```{r message = FALSE, warning=FALSE}
-# Function -> pulls the 7th column, slope, then pivots in long, and scales it to probability
-cln <- function(df) as_draws_df(df)[4] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
-
-#run  model
-lms <- map(list_o2_lm, cln) %>% 
-  bind_rows()
-
-#list of slopes in order of means
-nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
-
-# New df to demonstrate which vars don't overlap 0 at 89%
-sigs <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>% 
-  mutate(sigs = case_when(
-    .lower > 0 & .upper > 0 ~ "sig",
-    .lower < 0 & .upper < 0 ~ "sig",
-    #max(var) < 0.5 ~ "sig",
-    TRUE ~ "nosig")) %>% select(var, sigs)
-
-```
-
-
-```{r}
-sigs %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
-```
-
-#### Forest Plots
-```{r}
-
-lms %>% right_join(sigs, by = 'var') %>% 
-  mutate(var = fct_relevel(var, nms$var)) %>% 
-  ggplot(aes(x = val, y = var, color = sigs)) + 
-  stat_pointinterval(.width = c(.66, .89)) +
-  geom_vline(xintercept = 0.5, linetype = 3) + 
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) +
-  theme_bw()
-
-ggsave(here("Plots","Ord2_sigs.pdf"), height = 15)
-
-lms %>% right_join(sigs, by = 'var') %>% 
-  filter(sigs == "sig") %>% 
-  mutate(var = fct_relevel(var, nms$var)) %>% 
-  ggplot(aes(x = val, y = var, color = sigs)) + 
-  stat_pointinterval(.width = c(.66, .89)) +
-  geom_vline(xintercept = 0.5, linetype = 3) + 
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) +
-  theme_bw()
-
-ggsave(here("Plots","Ord2_sigs2.pdf"), height = 10)
-```
-
-
-
-## Model tuning
 I'm not sure how to help the divergent transitions. They seem to appear with the intraspecific variation and the phylogenetic variation. 
 
 ```{r message = FALSE, warning=FALSE}
@@ -381,17 +250,20 @@ m_01.5 <- brm( Loc_Ord2 ~ Uol + log_Mass , family = cumulative(), data=dat, refr
 
 ```
 
+
+
 ```{r message = FALSE, warning=FALSE}
+
 ps1 <- get_prior(Loc_Ord2 ~ Uol + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
   class == "b"  ~ "normal(0,1)",
   class == "sd" ~ "normal(0, 1)",
-  class == "Intercept" ~ "student_t(3,0,2)",
+  class == "Intercept" ~ "student_t(1,0,2)",
   TRUE ~ prior ) )
 
 ps2 <- get_prior(Loc_Ord2 ~ Uol +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
   class == "b"  ~ "student_t(3,0,2)",
   class == "sd" ~ "normal(0, 1)",
-  class == "Intercept" ~ "student_t(3,0,2)",
+  class == "Intercept" ~ "student_t(1,0,2)",
   TRUE ~ prior ) )
 
 
@@ -399,42 +271,43 @@ ms_01 <- brm( Loc_Ord2 ~ Uol + log_Mass+ (1|Genus_species)+ (1|gr(Taxon_Upham_st
 
 ms_01.2 <- brm( Loc_Ord2 ~ Uol +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps2)
 
-ms_01.3 <- brm( Loc_Ord2 ~ Uol + log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps1, control = list(adapt_delta = .99))
+
+ps3 <- get_prior(Loc_Ord2 ~ Uol +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
+  class == "b"  ~ "normal(0, 1)",
+  class == "sd" ~ "normal(0, 1)",
+  class == "Intercept" ~ "normal(0, 1)",
+  TRUE ~ prior ) )
 
 
-ms_01.4 <- brm( Loc_Ord2 ~ Uol + log_Mass +  (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, control = list(adapt_delta = .99),
-               data2 = list(A = A),
-               prior = c(prior(student_t(3,0,2), class = Intercept),
-                prior(normal(0, 1), class = b),
-                prior(normal(0, 1), class = sd)))
-
-ms_01.5 <- brm( Loc_Ord2 ~ Uol + log_Mass , family = cumulative(), data=dat, refresh = 0, cores = 4, prior = c(prior(student_t(3,0,2), class = Intercept),
-                prior(normal(0, 1), class = b)))
-
+ms_01.3 <- brm( Loc_Ord2 ~ Uol +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps3)
 ```
 
-```{r message = FALSE, warning=FALSE}
-#loo(m_01) %>% plot()
-loo(m_01) %>% plot()
-loo(m_01.2) %>% plot()
-#loo(m_01.5) %>% plot()
-```
 
 
 ```{r}
-#both
-dat %>% slice(loo(m_01) %>% 
-  loo::pareto_k_ids(threshold = 0.7)) %>% select(1:4)  -> lo1
-#Genus-SPecies
-dat %>% slice(loo(m_01.3) %>% 
-  loo::pareto_k_ids(threshold = 0.7)) %>% select(1:4) -> lo2
-#phylo
-dat %>% slice(loo(m_01.4) %>% 
-  loo::pareto_k_ids(threshold = 0.7)) %>% select(1:4) -> lo3
+ms_01
+ms_01.2
+ms_01.3
 ```
 
 ```{r}
-plot(m_01.2, N=3, ask=F)
+p1s <- plot(conditional_effects(ms_01, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1) #+ xlim(NA, 4)
+
+p2s <- plot(conditional_effects(ms_01.2, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) #+ ylim(0,1)
+
+p3s <- plot(conditional_effects(ms_01.3, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) #+ ylim(0,1)
+
+p1s / p2s / p3s
 ```
 
+```{r}
+loo(ms_01, ms_01.2, ms_01.3)
+loo(ms_01.3)
+```
 

@@ -1,0 +1,293 @@
+---
+title: "Ordinal Plots"
+output: html_notebook
+---
+
+Plotting the 4 category Ordinal Model results
+
+There are two parts: Probability plots and Forest Plots
+
+Packages and Data
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+# Models
+
+list_o2_lm <- read_rds(here("Data","ordinal2_lm_models.Rds"))
+list_o2_gm <- read_rds(here("Data","ordinal2_gm_models.Rds"))
+```
+
+some colors
+```{r}
+pal = c('#66a61e', '#7570b3',  '#e6ab02', '#62361B')
+
+binpal = c('#66a61e','#5e1ea6')#5e1ea6
+cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
+```
+
+# Forest Plots
+
+Here i'm focusing on the slope of the phenotype
+
+## Extract Slopes  
+
+#### Helper Functions
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[4] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
+```
+
+#### Log_mass Slope DF
+```{r message = FALSE, warning=FALSE}
+#run  model
+lms <- map(list_o2_lm, cln) %>% 
+  bind_rows()
+
+#list of slopes in order of means
+nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+# New df to demonstrate which vars don't overlap 0 at 89%
+sigs_lm <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>% 
+  mutate(sigs = case_when(
+    .lower > 0 & .upper > 0 ~ "sig",
+    .lower < 0 & .upper < 0 ~ "sig",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+   mutate(dirs = case_when(
+    .lower > 0 & .upper > 0 ~ "Values Decrease with Climbing",
+    .lower < 0 & .upper < 0 ~ "Values Increase with Climbing",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+  select(var, sigs, dirs)
+```
+
+List the variables that have strong non-zero slopes
+```{r}
+sigs_lm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
+```
+
+#### Geometric_mean Slope DF  
+
+```{r message = FALSE, warning=FALSE}
+#run  model
+gms <- map(list_o2_gm, cln) %>% 
+  bind_rows()
+
+#list of slopes in order of means
+nms_gm <- gms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+# New df to demonstrate which vars don't overlap 0 at 89%
+sigs_gm <- gms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>% 
+  mutate(sigs = case_when(
+    .lower > 0 & .upper > 0 ~ "sig",
+    .lower < 0 & .upper < 0 ~ "sig",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+ mutate(dirs = case_when(
+    .lower > 0 & .upper > 0 ~ "Values Decrease with Climbing",
+    .lower < 0 & .upper < 0 ~ "Values Increase with Climbing",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+  select(var, sigs, dirs)
+```
+
+## Plot Slopes
+
+#### All LM Slopes
+```{r warning = FALSE}
+
+lms %>% right_join(sigs_lm, by = 'var') %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs.pdf"), height = 15)
+
+lms %>% right_join(sigs_lm, by = 'var') %>% 
+  filter(sigs == "sig") %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs2.pdf"), height = 10)
+```
+
+#### All GM Slopes  
+
+```{r warning = FALSE}
+
+gms %>% right_join(sigs_gm, by = 'var') %>% 
+  mutate(var = fct_relevel(var, nms_gm$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs.pdf"), height = 15)
+
+gms %>% right_join(sigs_gm, by = 'var') %>% 
+  filter(sigs == "sig") %>% 
+  mutate(var = fct_relevel(var, nms_gm$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs2.pdf"), height = 10)
+```
+
+## Combined Forest Plot
+
+Wrangle sigs from both DFs and rename
+```{r}
+lmsig <- lms %>% 
+  right_join(sigs_lm, by = 'var') %>% 
+  filter(sigs == "sig") %>% 
+ #mutate(dirs = case_when(
+ #  val > 0.5  ~ "Decreasing",
+ #  val < 0.5  ~ "Increasing")) %>% 
+  mutate(correction = "log(Mass)")
+
+sigplotdf <- gms %>% 
+  right_join(sigs_gm, by = 'var') %>% 
+  filter(sigs == "sig") %>% 
+ #mutate(dirs = case_when(
+ #  val > 0.5  ~ "Decreasing",
+ #  val < 0.5  ~ "Increasing")) %>% 
+  mutate(correction = "Geometric Mean") %>% 
+  bind_rows(lmsig)
+
+rm(lmsig)
+
+
+sigplotdf <- sigplotdf %>% 
+  mutate(var = case_when(var == "b_Hl"  ~ "Humerus Length",
+                         var == "b_Uol"  ~ "Olecranon Length",
+                         var == "b_Rl" ~ "Radius Length",
+                         var == "b_Fl"  ~ "Femur Length",
+                         var == "b_Fbl" ~ "Fibula Length",
+                         var == "b_Ppl" ~ "Proximal Phalanx Length",
+                         var == "b_Ipl" ~ "Intermediate Phalanx Length",
+                         var == "b_Ipw"  ~ "Intermediate Phalanx Width",
+                         var == "b_Dpl"  ~ "Distal Phalanx Length",
+                         var == "b_Dpw" ~ "Distal Phalanx Length",
+                         var == "b_Mtl"  ~ "Metatarsal Length",
+                         var == "b_Pipl" ~ "Intermediate Phalanx Length Pes",
+                         var == "b_HRI" ~ "Humeral Robustness Index",
+                         var == "b_HPI" ~ "Proximal Humeral Index",
+                         var == "b_HEB" ~ "Humeral Epicondyle Index",
+                         var == "b_HHRI" ~ "Humeral Head Index",
+                         var == "b_OLI"  ~ "Olecranon Process Index",
+                         var == "b_PRTI"  ~ "Palm Robustness Index",
+                         var == "b_MANUS" ~ "Manus Proportion Index Proximal",
+                         var == "b_MANUS2"  ~ "Manus Proportion Index Intermediate",
+                         var == "b_IRI" ~ "Illium Robustness Index",
+                         var == "b_FRI" ~ "Femoral Robustness Index",
+                         var == "b_FEB" ~ "Femoral Epicondyle Index",
+                         var == "b_CI" ~ "Crural Index",
+                         var == "b_TRI"  ~ "Tibial Robustness Index",
+                         var == "b_PR"  ~ "Pelvic Index",
+                         var == "b_PES" ~ "Pes Proportion Index Proximal",
+                         var == "b_PES2"  ~ "Pes Proportion Index Intermediate",
+                         var == "b_Ul" ~ "Ulna Length",
+                         var == "b_Tl" ~ "Tibia Length",
+                         var == "b_Cal" ~ "Calcaneal Body Length",
+                         var == "b_Anl" ~ "Astragular Neck Length",
+                         var == "b_Ppw" ~ "Proximal Phalanx Width",
+                         var == "b_Pppl" ~ "Proximal Phalanx Length Pes",
+                         TRUE ~ NA)) 
+
+levs <- c("Calcaneal Body Length", "Pelvic Index", "Tibia Length", "Illium Robustness Index", "Astragular Neck Length", "Manus Proportion Index Intermediate", "Ulna Length", "Proximal Phalanx Length Pes", "Fibula Length", "Femur Length", "Radius Length", "Intermediate Phalanx Length Pes", "Humerus Length", "Intermediate Phalanx Length", "Pes Proportion Index Intermediate", "Manus Proportion Index Proximal", "Pes Proportion Index Proximal", "Proximal Phalanx Length", NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , "Metatarsal Length", NA , NA , "Palm Robustness Index", "Tibial Robustness Index", "Proximal Phalanx Width" , "Crural Index" , "Humeral Head Index" , "Distal Phalanx Length", "Intermediate Phalanx Width" , "Distal Phalanx Length", "Olecranon Length" , "Humeral Robustness Index" , "Femoral Epicondyle Index" , "Humeral Epicondyle Index" , "Femoral Robustness Index" , "Olecranon Process Index", "Proximal Humeral Index" )
+```
+
+#### Big Forest Plot  
+```{r}
+
+sigplotdf %>% 
+  mutate(var = fct_relevel(var, levs)) %>%
+  ggplot(aes(x = val, y = var, color = correction)) + 
+  stat_pointinterval(.width = c(.66, .89), position = position_dodge(width = .5)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = binpal) +
+  scale_color_manual(values = binpal) +
+  theme_bw() +
+  labs(title = "Ordinal Modeling: Effect Sizes",
+       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side increase with increased climbing (e.g. longer phalanges) and values on the right decrease with increased climbing (e.g. shorter olecranon)",
+       x = "log-odds",
+       y = "") +
+  facet_wrap(~fct_relevel(dirs,'Values Increase with Climbing','Values Decrease with Climbing'), scales = "free")
+
+ggsave(here("Plots","Ordinal_Modeling_Effects.pdf", height = 9, width = 14))
+ggsave(here("Plots","Ordinal_Modeling_Effects.png", height = 9, width = 14))
+```
+
+
+# Probability Plots 
+
+
+Looping over `conditional_effects` plots
+Dont Run
+```{r message = FALSE, warning=FALSE}
+#for(i in list_o_lm){
+# plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
+#  scale_fill_manual(values = pal) +
+#  scale_color_manual(values = pal) + ylim(0,1)
+# print(plots + theme_bw())
+#}
+
+#for(i in list_o_gm){
+# plots <- plot(conditional_effects(i, categorical = TRUE), plot=F, points = T)[[1]] +
+#  scale_fill_manual(values = pal) +
+#  scale_color_manual(values = pal) + ylim(0,1)
+# print(plots + theme_bw()) 
+#}
+
+```
+
+### Four plots for comparisons 
+
+Plot the 4 "best" predictors: Ppl, PES, HPI, and OLI
+
+```{r}
+p1 <- plot(conditional_effects(list_o2_lm$Ppl, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 4)
+
+p2 <- plot(conditional_effects(list_o2_lm$PES, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p3 <- plot(conditional_effects(list_o2_lm$HPI, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+p4 <- plot(conditional_effects(list_o2_lm$OLI, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) + ylim(0,1)
+
+(p1 + p2) / (p3 + p4) + plot_layout(guides = "collect") + plot_annotation(title = "Measurements with the largest effect sizes") & theme_bw()
+
+ggsave( here("Plots","Ord2_compare_1.pdf"), width = 8, height = 5)
+ggsave( here("Plots","Ord2_compare_1.png"), width = 8, height = 5)
+```
+
