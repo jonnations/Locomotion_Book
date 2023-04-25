@@ -61,7 +61,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
                               Loc_mode_Ordinal == "Ss" ~ "B",
                              TRUE ~ NA),
          Loc_Ord2 = as.ordered(Loc_Ord2),
-         Loc_Ord2 = fct_relevel(Loc_Ord2, c("A","Sc","T","B")),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
          Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
                              Loc_mode_Bindary == "Tree" ~ 1,
                              TRUE ~ NA
