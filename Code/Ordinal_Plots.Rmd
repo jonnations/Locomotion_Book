@@ -232,7 +232,7 @@ sigplotdf %>%
   scale_color_manual(values = binpal) +
   theme_bw(base_size = 14) +
   labs(title = "Ordinal Modeling: Effect Sizes",
-       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side increase with increased climbing (e.g. longer phalanges)\nand values on the right decrease with increased climbing (e.g. shorter olecranon)",
+       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side decrease with increased climbing (e.g. longer phalanges)\nand values on the right increase with increased climbing (e.g. shorter olecranon)",
        x = "log-odds",
        y = "") +
   facet_wrap(~fct_relevel(dirs,'More Climbing = Shorter Measurement','More Climbing = Larger Measurement'), scales = "free")
