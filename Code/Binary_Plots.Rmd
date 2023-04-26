@@ -140,8 +140,8 @@ sigs_lm <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>%
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
    mutate(dirs = case_when(
-    .lower > 0 & .upper > 0 ~ "Values Increase with Climbing",
-    .lower < 0 & .upper < 0 ~ "Values Decrease with Climbing",
+    .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
+    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
   select(var, sigs, dirs)
@@ -170,8 +170,8 @@ sigs_gm <- gms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>%
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
  mutate(dirs = case_when(
-    .lower > 0 & .upper > 0 ~ "Values Increase with Climbing",
-    .lower < 0 & .upper < 0 ~ "Values Decrease with Climbing",
+    .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
+    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
   select(var, sigs, dirs)
@@ -360,12 +360,12 @@ sigplotdf %>%
   geom_vline(xintercept = 0.5, linetype = 3) + 
   scale_fill_manual(values = binpal) +
   scale_color_manual(values = binpal) +
-  theme_bw() +
+  theme_bw(base_size = 14) +
   labs(title = "Binary Modeling: Effect Sizes",
-       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side increase with decreased climbing (e.g. shorter olecranon) and values on the right decrease with increased climbing ( e.g. longer phalanges)",
+       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side increase with decreased climbing (e.g. shorter olecranon)\nand values on the right decrease with increased climbing ( e.g. longer phalanges)",
        x = "log-odds",
        y = "") +
-  facet_wrap(~fct_relevel(dirs,'Values Decrease with Climbing','Values Increase with Climbing'), scales = "free")
+  facet_wrap(~fct_relevel(dirs,'More Climbing = Shorter Measurement','More Climbing = Larger Measurement'), scales = "free")
 
 ggsave(here("Plots/Binary_Modeling_Effects.pdf"), height = 9, width = 14)
 ggsave(here("Plots","Binary_Modeling_Effects.png"), height = 9, width = 14)

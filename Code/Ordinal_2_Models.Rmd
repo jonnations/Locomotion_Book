@@ -218,96 +218,123 @@ list_o2_gm %>% write_rds(here("Data","ordinal2_gm_models.Rds"))
 
 I'm not sure how to help the divergent transitions. They seem to appear with the intraspecific variation and the phylogenetic variation. 
 
-```{r message = FALSE, warning=FALSE}
-p1 <- get_prior(Loc_Ord2 ~ Uol + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
-  class == "b"  ~ "normal(0, 1)",
-  class == "sd" ~ "normal(0, 1)",
-  class == "Intercept" ~ "normal(0, 1)",
-  TRUE ~ prior ) )
 
-p2 <- get_prior(Loc_Ord2 ~ Uol +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
-  class == "b"  ~ "normal(0, 1)",
-  class == "sd" ~ "normal(0, 1)",
-  class == "Intercept" ~ "normal(0, 1)",
-  TRUE ~ prior ) )
+```{r message = FALSE}
+source("Dirichlet_Prior.R")
 
-
-m_01 <- brm( Loc_Ord2 ~ Uol + log_Mass+ (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = p1)
-
-m_01.2 <- brm( Loc_Ord2 ~ Uol +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = p2)
-
-m_01.3 <- brm( Loc_Ord2 ~ Uol + log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = p1, control = list(adapt_delta = .99))
-
-
-m_01.4 <- brm( Loc_Ord2 ~ Uol + log_Mass +  (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, control = list(adapt_delta = .99),
-               data2 = list(A = A),
-               prior = c(prior(normal(0, 1), class = Intercept),
-                prior(normal(0, 1), class = b),
-                prior(normal(0, 1), class = sd)))
-
-m_01.5 <- brm( Loc_Ord2 ~ Uol + log_Mass , family = cumulative(), data=dat, refresh = 0, cores = 4, prior = c(prior(normal(0, 1), class = Intercept),
-                prior(normal(0, 1), class = b)))
-
-```
-
-
-
-```{r message = FALSE, warning=FALSE}
-
-ps1 <- get_prior(Loc_Ord2 ~ Uol + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
+ps1 <- get_prior(Loc_Ord2 ~ Ppl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
   class == "b"  ~ "normal(0,1)",
   class == "sd" ~ "normal(0, 1)",
-  class == "Intercept" ~ "student_t(1,0,2)",
+  class == "Intercept" ~ "student_t(2,0,2)",
   TRUE ~ prior ) )
 
-ps2 <- get_prior(Loc_Ord2 ~ Uol +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
-  class == "b"  ~ "student_t(3,0,2)",
+ps2 <- ps1 %>%  mutate(prior = case_when(
+  class == "b"  ~ "student_t(3,0,1)",
   class == "sd" ~ "normal(0, 1)",
   class == "Intercept" ~ "student_t(1,0,2)",
   TRUE ~ prior ) )
 
-
-ms_01 <- brm( Loc_Ord2 ~ Uol + log_Mass+ (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps1)
-
-ms_01.2 <- brm( Loc_Ord2 ~ Uol +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps2)
-
-
-ps3 <- get_prior(Loc_Ord2 ~ Uol +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
+ps3 <- ps1 %>%  mutate(prior = case_when(
   class == "b"  ~ "normal(0, 1)",
   class == "sd" ~ "normal(0, 1)",
   class == "Intercept" ~ "normal(0, 1)",
   TRUE ~ prior ) )
 
+ps4 =  c(set_prior("induced_dirichlet(rep_vector(1, nthres+1),0", class = "Intercept"),
+          set_prior("student_t(2,0,2)", class = "sd"),
+          set_prior("normal(0,1)", class = "b"))
 
-ms_01.3 <- brm( Loc_Ord2 ~ Uol +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps3)
+ps5 =  c(set_prior("induced_dirichlet(rep_vector(1, nthres+1),0", class = "Intercept"),
+          set_prior("normal(0,1)", class = "sd"),
+          set_prior("normal(0,1)", class = "b"))
 ```
 
+
+```{r warning = FALSE}
+
+ms_1 <- brm( Loc_Ord2 ~ Ppl + log_Mass + (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps1)
+
+ms_2 <- brm( Loc_Ord2 ~Ppl +  + log_Mass +(1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps2)
+
+ms_3 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps3)
+
+ms_4 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps4, stanvars = dirichlet_prior_stanvar)
+
+ms_5 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps5, stanvars = dirichlet_prior_stanvar)
+```
 
 
 ```{r}
-ms_01
-ms_01.2
-ms_01.3
+loo(ms_1, ms_2, ms_3, ms_4, ms_5)
 ```
 
 ```{r}
-p1s <- plot(conditional_effects(ms_01, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+plot(conditional_effects(ms_4, categorical = TRUE), plot = F)[[1]] +
   scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal)+ ylim(0,1) #+ xlim(NA, 4)
+  scale_color_manual(values = pal)
 
-p2s <- plot(conditional_effects(ms_01.2, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
+plot(conditional_effects(ms_3, categorical = TRUE), plot = F)[[1]] +
   scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) #+ ylim(0,1)
+  scale_color_manual(values = pal)
 
-p3s <- plot(conditional_effects(ms_01.3, categorical = TRUE, prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) #+ ylim(0,1)
+plot(ms_4, N=3, ask=F)
+```
 
-p1s / p2s / p3s
+
+## ANOVA
+
+```{r warning = FALSE, message=FALSE}
+anv1 <- brm( Ppl ~ 0 + Loc_Ord2 +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = gaussian(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), 
+             prior = c(set_prior("normal(0,1)", class = "sd"),
+          set_prior("normal(0,1)", class = "b")))
+
+anv2 <- brm(bf(Uol ~ 0 + Loc_Ord2 +  log_Mass + (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)),
+               sigma ~ 0 + Loc_Ord2),
+            family = gaussian(), 
+            data=dat, refresh = 0, 
+            cores = 4, data2 = list(A = A), 
+            prior = c(set_prior("normal(0,1)", 
+                                class = "sd"),
+                      set_prior("normal(0,1)", 
+                                class = "b")))
 ```
 
 ```{r}
-loo(ms_01, ms_01.2, ms_01.3)
-loo(ms_01.3)
+as_draws_df(anv1) %>% 
+  select(1:4) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89)) + 
+  xlim(-1.25, 1)
+
+as_draws_df(anv2) %>% 
+  select(1:4) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89)) + 
+  xlim(-1.25, 1)
+
+as_draws_df(anv1) %>% 
+  select(1:4) %>% 
+  mutate(dif_A_Sc = b_Loc_Ord2A - b_Loc_Ord2Sc,
+         dif_A_T = b_Loc_Ord2A - b_Loc_Ord2T,
+         dif_A_B = b_Loc_Ord2A - b_Loc_Ord2B) %>% 
+  select(5:7) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  geom_halfeyeh(.width = c(.66, .89))
+
+as_draws_df(anv2) %>% 
+  select(1:4) %>% 
+  mutate(dif_A_Sc = b_Loc_Ord2A - b_Loc_Ord2Sc,
+         dif_A_T = b_Loc_Ord2A - b_Loc_Ord2T,
+         dif_A_B = b_Loc_Ord2A - b_Loc_Ord2B) %>% 
+  select(5:7) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89))
+  
+  
 ```
+
 
