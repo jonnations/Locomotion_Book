@@ -97,6 +97,11 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
 
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 ```
+### Percentages of Missing Data
+
+```{r}
+dat %>% select(log_Mass:PES2) %>% map(~ mean(is.na(.))) %>% bind_rows() %>% pivot_longer(everything(), names_to = "measure", values_to = "val") %>% arrange(desc(val)) %>% mutate(val = round(val, 2)) %>% write_csv(here("Data", "Missing_Data_Percents.csv"))
+```
 
 ### Load Tree & Get Cor Matrix
 
