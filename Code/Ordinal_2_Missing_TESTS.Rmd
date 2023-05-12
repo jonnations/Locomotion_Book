@@ -128,19 +128,10 @@ log_Mass, Sl, Sh, Hl, Hsw, Hdw, Uol, Ul, Rl, Fl, Fsw, Fdw, Tl, Tmw
 
 *indices with complete data:*
  SI, HRI, HEB, OLI, BI, IM, FRI, FEB, CI, TRI
- 
-```{r}
-var_complete <- c("log_Mass", "Sl", "Sh", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
-```
 
 *All variables with <= 31% missing data:*
 MANUS2, Ipl, PES, Pppl, Mtl, MANUS, Ppl, Mcl, PRTI
 These variables will be included in the study, and missing values will be imputed.
-
-```{r}
-var_missing <- c("MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI")
-```
-
 
 *All variables with > 31% missing data:*
 Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, Cl, Fbpw, Pipl, PES2, Ppw, Mcw, MRI, Hpw, Pel, Il, Isl, Tpw, Fbl, HPI, IRI, PR, Hdcw, DI, Tdw
@@ -150,144 +141,10 @@ The percentages are stored in the df `Missing_Data_Percents.csv`
 
 
 
-# Fit Models  
-
-## Log(Mass) Complete  
-
-#### Prior  
-
-Note: I tested this and the prior does carry over using `update` as long as it is called. Even though some of the "coef"s don't match, the priors and the classes (b, sd, etc) do
-
-```{r message = FALSE, warning=FALSE, results = 'hide'}
-
-p1 <- get_prior(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-  data2 = list(A = A),
-           family = cumulative(),
-           data = dat) %>% 
-    mutate(
-      prior = case_when(
-        class == "b"  ~ "normal(0, 1)",
-        class == "sd" ~ "normal(0, 15)",
-        class == "Intercept" ~ "normal(0, 1)",
-        TRUE ~ prior
-      )
-    )
-```
-
-#### Prelim Model  
-initial model run that can be "updated" in a loop over all the relevant models
-```{r message = FALSE, warning=FALSE,  cache=TRUE, results = 'hide'}
-#initial fit
-mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-          data2 = list(A = A),
-          family = cumulative(),
-          data = dat, refresh = 0, cores = 4,
-          prior = p1,
-          seed = 145)
-```
-
-#### Run Loop
-```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
-
-#list_o2_lm <- vector(mode ="list")
-
-for(i in var_complete){
-  list_o2_lm[[i]]<- update(mm,
-                         formula=(paste0("Loc_Ord2 ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
-                         family = cumulative(),
-                         newdata=dat,
-                         refresh = 0,
-                         cores = 4,
-                         data2 = list(A = A),
-                         prior = p1,
-                         seed = 145
-                         ) 
-}
-
-#list_o2_lm %>% write_rds(here("Data","O_lm_mods_nomissing.Rds"))
-```
-
-## Missing log(Mass)
-
-Update cannot be used with multivatiate models
-
-#### Model
-```{r}
-ord_mod <-  
-  bf(Loc_Ord2 ~ mi(Ipl) + log_Mass + 
-       (1 | Genus_species) +  
-       (1|gr(Taxon_Upham_style, cov = A))) + cumulative()
-
-# use all linear measurements and phylo to estimate the missing value
-imp_mod <- bf(Ipl | mi() ~ log_Mass + Sl + Sh + 
-       Hl + Hsw + Hdw + Uol + Ul + Rl + 
-       Fl + Fsw + Fdw + Tl + Tmw + 
-       (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
-
-m_form <- ord_mod + imp_mod + set_rescor(FALSE)
-```
-
-#### Prior  
-
-```{r}
-p1 <- get_prior(m_form,
-  data2 = list(A = A),
-           data = dat) %>% 
-  mutate(
-    prior = case_when(
-      class == "b"  ~ "normal(0, 1)",
-      class == "sd" ~ "normal(0, 1)",
-      class == "Intercept" ~ "normal(0, 1)",
-      class == "sigma" ~ "normal(0, 0.5)",
-      TRUE ~ prior
-      )
-  )
-```
+# Missing Data Model Test
+ Ignore the geometric mean for now, let's start with the log mass and a linear measurement that fairs pretty well.
 
 
-#### Run Loop
-```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
-
-#list_o2_lm <- vector(mode ="list")
-
-for(i in var_missing){
-  ord_mod <-  bf(paste0("Loc_Ord2 ~ mi(", i, ")+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + cumulative()
-  imp_mod <- bf(paste0(i,"| mi() ~ log_Mass + Sl + Sh + 
-       Hl + Hsw + Hdw + Uol + Ul + Rl + 
-       Fl + Fsw + Fdw + Tl + Tmw + 
-       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
-  m_form <- ord_mod + imp_mod + set_rescor(FALSE)
-  
-  pri <- get_prior(m_form,
-  data2 = list(A = A),
-           data = dat) %>% 
-  mutate(
-    prior = case_when(
-      class == "b"  ~ "normal(0, 1)",
-      class == "sd" ~ "normal(0, 1)",
-      class == "Intercept" ~ "normal(0, 1)",
-      class == "sigma" ~ "normal(0, 0.5)",
-      TRUE ~ prior
-      ))
-
-  list_o2_lm[[i]]<- brm(m_form,
-                         data=dat,
-                         refresh = 0,
-                         cores = 4,
-                         data2 = list(A = A),
-                         prior = pri,
-                         seed = 145
-                         ) 
-}
-
-#list_o2_lm %>% write_rds(here("Data","O_lm_mods_nomissing.Rds"))
-```
-
-
-
-#ENd
-#End
-#End
 ## Test 1: 30% 
 **Ipl** or intermediate phalanx length -> roughly 30% missing data
 
