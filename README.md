@@ -11,4 +11,7 @@ Investigation into the morphological signature of arboreality in (small) mammals
 
 ####
 
-Lists of 
+
+Notes:
+
+I tried removing the intercept from the `phenotype | mi() ~ ` gaussian models (1/2 of the missing data models) and nothing changes. 
