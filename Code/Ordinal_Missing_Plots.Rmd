@@ -10,7 +10,7 @@ There are two parts: Probability plots and Forest Plots
 Packages and Data
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggh4x)
 
 options(brms.backend = "cmdstanr")
 
@@ -18,6 +18,9 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
 
 here::i_am("README.md")
 here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
 
 # Models
 
@@ -49,14 +52,14 @@ missing: models 25:33
 # Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
 cln <- function(df) as_draws_df(df)[4] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
 # Same for missing
-cln2 <- function(df) as_draws_df(df)[20] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
+cln2 <- function(df) as_draws_df(df)[19] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
 ```
 
 #### Log_mass Slope DF
 ```{r message = FALSE, warning=FALSE}
 #run  model
 lms <- map(list_o2_lm[2:23], cln) %>% 
-  bind_rows()
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
 lms2 <- map(list_o2_lm[24:43], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_LocOrd2_mi",""))
@@ -76,7 +79,7 @@ sigs_lm <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>%
     TRUE ~ "nosig")) %>% 
    mutate(dirs = case_when(
     .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
-    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
+    .lower < 0 & .upper < 0 ~ "Less Climbing = Shorter Measurement",
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
   select(var, sigs, dirs)
@@ -92,7 +95,7 @@ sigs_lm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
 ```{r message = FALSE, warning=FALSE}
 #run  model
 gms <- map(list_o2_gm[2:23], cln) %>% 
-  bind_rows()
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
 gms2 <- map(list_o2_gm[24:43], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_LocOrd2_mi",""))
@@ -112,10 +115,13 @@ sigs_gm <- gms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>%
     TRUE ~ "nosig")) %>% 
  mutate(dirs = case_when(
     .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
-    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
+    .lower < 0 & .upper < 0 ~ "Less Climbing = Shorter Measurement",
     #max(var) < 0.5 ~ "sig",
     TRUE ~ "nosig")) %>% 
   select(var, sigs, dirs)
+
+
+sigs_gm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
 ```
 
 ## Plot Slopes
@@ -200,70 +206,190 @@ rm(lmsig)
 
 
 sigplotdf <- sigplotdf %>% 
-  mutate(var = case_when(var == "b_Hl"  ~ "Humerus Length",
-                         var == "b_Uol"  ~ "Olecranon Length",
-                         var == "b_Rl" ~ "Radius Length",
-                         var == "b_Fl"  ~ "Femur Length",
-                         var == "b_Fbl" ~ "Fibula Length",
-                         var == "b_Ppl" ~ "Proximal Phalanx Length",
-                         var == "b_Ipl" ~ "Intermediate Phalanx Length",
-                         var == "b_Ipw"  ~ "Intermediate Phalanx Width",
-                         var == "b_Dpl"  ~ "Distal Phalanx Length",
-                         var == "b_Dpw" ~ "Distal Phalanx Length",
-                         var == "b_Mtl"  ~ "Metatarsal Length",
-                         var == "b_Pipl" ~ "Intermediate Phalanx Length Pes",
-                         var == "b_HRI" ~ "Humeral Robustness Index",
-                         var == "b_HPI" ~ "Proximal Humeral Index",
-                         var == "b_HEB" ~ "Humeral Epicondyle Index",
-                         var == "b_HHRI" ~ "Humeral Head Index",
-                         var == "b_OLI"  ~ "Olecranon Process Index",
-                         var == "b_PRTI"  ~ "Palm Robustness Index",
-                         var == "b_MANUS" ~ "Manus Proportion Index Proximal",
-                         var == "b_MANUS2"  ~ "Manus Proportion Index Intermediate",
-                         var == "b_IRI" ~ "Illium Robustness Index",
-                         var == "b_FRI" ~ "Femoral Robustness Index",
-                         var == "b_FEB" ~ "Femoral Epicondyle Index",
-                         var == "b_CI" ~ "Crural Index",
-                         var == "b_TRI"  ~ "Tibial Robustness Index",
-                         var == "b_PR"  ~ "Pelvic Index",
-                         var == "b_PES" ~ "Pes Proportion Index Proximal",
-                         var == "b_PES2"  ~ "Pes Proportion Index Intermediate",
-                         var == "b_Ul" ~ "Ulna Length",
-                         var == "b_Tl" ~ "Tibia Length",
-                         var == "b_Cal" ~ "Calcaneal Body Length",
-                         var == "b_Anl" ~ "Astragular Neck Length",
-                         var == "b_Ppw" ~ "Proximal Phalanx Width",
-                         var == "b_Pppl" ~ "Proximal Phalanx Length Pes",
+  mutate(var = case_when(var == "Hl"  ~ "Humerus Length",
+                         var == "Uol"  ~ "Olecranon Length",
+                         var == "Rl" ~ "Radius Length",
+                         var == "Fl"  ~ "Femur Length",
+                         var == "Fbl" ~ "Fibula Length",
+                         var == "Ppl" ~ "Proximal Phalanx Length",
+                         var == "Ipl" ~ "Intermediate Phalanx Length",
+                         var == "Ipw"  ~ "Intermediate Phalanx Width",
+                         var == "Dpl"  ~ "Distal Phalanx Length",
+                         var == "Dpw" ~ "Distal Phalanx Length",
+                         var == "Mtl"  ~ "Metatarsal Length",
+                         var == "Pipl" ~ "Intermediate Phalanx Length Pes",
+                         var == "HRI" ~ "Humeral Robustness Index",
+                         var == "HPI" ~ "Proximal Humeral Index",
+                         var == "HEB" ~ "Humeral Epicondyle Index",
+                         var == "HHRI" ~ "Humeral Head Index",
+                         var == "OLI"  ~ "Olecranon Process Index",
+                         var == "PRTI"  ~ "Palm Robustness Index",
+                         var == "MANUS" ~ "Manus Proportion Index Proximal",
+                         var == "MANUS2"  ~ "Manus Proportion Index Intermediate",
+                         var == "IRI" ~ "Illium Robustness Index",
+                         var == "FRI" ~ "Femoral Robustness Index",
+                         var == "FEB" ~ "Femoral Epicondyle Index",
+                         var == "CI" ~ "Crural Index",
+                         var == "TRI"  ~ "Tibial Robustness Index",
+                         var == "PR"  ~ "Pelvic Index",
+                         var == "PES" ~ "Pes Proportion Index Proximal",
+                         var == "PES2"  ~ "Pes Proportion Index Intermediate",
+                         var == "Ul" ~ "Ulna Length",
+                         var == "Tl" ~ "Tibia Length",
+                         var == "Cal" ~ "Calcaneal Body Length",
+                         var == "Anl" ~ "Astragular Neck Length",
+                         var == "Ppw" ~ "Proximal Phalanx Width",
+                         var == "Pppl" ~ "Proximal Phalanx Length Pes",
+                         var == "Mcw" ~ "Metacarpal Width",
                          TRUE ~ NA)) 
 
-levs <- c("Calcaneal Body Length", "Pelvic Index", "Tibia Length", "Illium Robustness Index", "Astragular Neck Length", "Manus Proportion Index Intermediate", "Ulna Length", "Proximal Phalanx Length Pes", "Fibula Length", "Femur Length", "Radius Length", "Intermediate Phalanx Length Pes", "Humerus Length", "Intermediate Phalanx Length", "Pes Proportion Index Intermediate", "Manus Proportion Index Proximal", "Pes Proportion Index Proximal", "Proximal Phalanx Length", NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , NA , "Metatarsal Length", NA , NA , "Palm Robustness Index", "Tibial Robustness Index", "Proximal Phalanx Width" , "Crural Index" , "Humeral Head Index" , "Distal Phalanx Length", "Intermediate Phalanx Width" , "Distal Phalanx Length", "Olecranon Length" , "Humeral Robustness Index" , "Femoral Epicondyle Index" , "Humeral Epicondyle Index" , "Femoral Robustness Index" , "Olecranon Process Index", "Proximal Humeral Index" )
+#levs <- sigplotdf %>% group_by(var, correction) %>% summarise(m = mean(val)) %>% arrange(m) %>% select(var) %>% distinct() %>% as.character()
+levs <- c("Proximal Humeral Index", "Olecranon Process Index", "Femoral Robustness Index", "Humeral Epicondyle Index", "Femoral Epicondyle Index", "Humeral Robustness Index", "Olecranon Length", "Crural Index", "Proximal Phalanx Width", "Tibial Robustness Index", "Metatarsal Length", "Palm Robustness Index", "Metacarpal Width", "Tibia Length", "Femur Length", "Proximal Phalanx Length Pes", "Ulna Length", "Manus Proportion Index Intermediate", "Humerus Length", "Radius Length", "Intermediate Phalanx Length", "Proximal Phalanx Length", "Manus Proportion Index Proximal", "Pes Proportion Index Proximal", "Pes Proportion Index Intermediate")
 ```
 
 #### Big Forest Plot  
 ```{r}
-
 sigplotdf %>% 
-  mutate(var = fct_relevel(var, levs)) %>%
+  mutate(var = fct_relevel(var, rev(levs))) %>%
   ggplot(aes(x = val, y = var, color = correction)) + 
   stat_pointinterval(.width = c(.66, .89), position = position_dodge(width = .5)) +
   geom_vline(xintercept = 0.5, linetype = 3) + 
   scale_fill_manual(values = binpal) +
   scale_color_manual(values = binpal) +
   theme_bw(base_size = 14) +
-  labs(title = "Ordinal Modeling: Effect Sizes",
-       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side decrease with increased climbing (e.g. longer phalanges)\nand values on the right increase with increased climbing (e.g. shorter olecranon)",
-       x = "log-odds",
-       y = "") +
-  facet_wrap(~fct_relevel(dirs,'More Climbing = Shorter Measurement','More Climbing = Larger Measurement'), scales = "free")
+    labs(x = "log odds", y = "", title = "Ordinal Modeling: Effect Sizes",
+       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side decrease with increased climbing (e.g. longer phalanges)\nand values on the right increase with increased climbing (e.g. shorter olecranon)") +
+  theme(legend.position = "bottom") +
+  facet_wrap(~dirs, scales = "free") +
+  facetted_pos_scales(y = list(
+    dirs == "More Climbing = Larger Measurement" ~
+      scale_y_discrete(position = "right")))
+  
+  
 
-#ggsave(here("Plots","Ordinal_Modeling_Effects.pdf"), height = 9, width = 14)
+ggsave(here("Plots","Ordinal_Modeling_Effects.pdf"), height = 9, width = 14)
 #ggsave(here("Plots","Ordinal_Modeling_Effects.png"), height = 9, width = 14)
 ```
 
+Two options for printing joint x-axis labels
+https://stackoverflow.com/questions/73042802/r-ggplot2-patchwork-common-axis-labels
+https://stackoverflow.com/questions/76256047/y-axis-labels-on-opposite-sides-in-facet-wrap
+
+Patchwork option.
+-----------------------
+sigplts = function(dir){
+sigplotdf %>% 
+  mutate(var = fct_relevel(var, rev(levs))) %>%
+    filter(dirs == {dir}) %>% 
+  ggplot(aes(x = val, y = var, color = correction)) + 
+  stat_pointinterval(.width = c(.66, .89), position = position_dodge(width = .5)) +
+  geom_vline(xintercept = 0.5, linetype = 3) + 
+  scale_fill_manual(values = binpal) +
+  scale_color_manual(values = binpal) +
+  theme_bw(base_size = 14) +
+    labs(x = "", y = "" )
+}
+
+p1 <- sigplts("Less Climbing = Shorter Measurement")
+p2 <- sigplts("More Climbing = Larger Measurement") +
+  scale_y_discrete(position = "right")
+
+p1 + p2 + plot_annotation(title = "Ordinal Modeling: Effect Sizes",
+       subtitle = "The further the estimates are from 0.5, the stronger the effect of the measurement on climbing.\nMeasurements on the left side decrease with increased climbing (e.g. longer phalanges)\nand values on the right increase with increased climbing (e.g. shorter olecranon)") + plot_layout(guides = 'collect') & theme(legend.position = "bottom")
+  
+  ggsave(here("Plots","Ordinal_Modeling_Effects2.pdf"), height = 9, width = 14)
+  ggsave(here("Plots","Ordinal_Modeling_Effects.png"), height = 9, width = 14)
+-------------------------
+
+#Prob Faceting  
+
+```{r}
+sigs <- sigs_lm %>% filter(sigs == "sig") %>% select(var)
+sigs <- sigs$var
+
+#Has to be done in 2 parts because the mi() and non-mi() conditional effects are different.
+misigs <- c("HPI", "Ipl", "MANUS", "MANUS2", "PES", "PES2", "PRTI", "Ppl", "Pppl", "Ppw", "Rl")
+
+nomisigs <- c("Uol", "Ul", "TRI", "Tl", "Hl", "HEB", "OLI", "FEB", "CI", "FRI", "Fl", "HRI")
+
+```
+
+```{r}
+ttt2 <- list_o2_lm[misigs]
+
+tt2 <- furrr::future_map(ttt2, ~ conditional_effects(.,  resp = "LocOrd2", categorical = TRUE, prob = 0.89)[2] %>%
+            as.data.frame() %>% 
+            rename_with(~str_remove(.,'.*cats__.')) %>% 
+            mutate(var = colnames(.)[1]) %>% 
+            select(c("var", "effect1__", "estimate__", "cats__", "lower__", "upper__"))) %>%
+  bind_rows() 
+
+```
+
+
+```{r}
+ttt1 <- list_o2_lm[nomisigs]
+
+tt1 <- furrr::future_map(ttt1, ~ conditional_effects(.,  resp = "LocOrd2", categorical = TRUE, prob = 0.89)[1] %>%
+            as.data.frame() %>% 
+            rename_with(~str_remove(.,'.*cats__.')) %>% 
+            mutate(var = colnames(.)[1]) %>% 
+            select(c("var", "effect1__", "estimate__", "cats__", "lower__", "upper__"))) %>%
+  bind_rows() 
+
+tt <- bind_rows(tt1, tt2)
+```
+
+plot
+
+```{r}
+tt %>% filter(var != "log_Mass") %>% ggplot(aes(x = effect1__, y = estimate__, group = cats__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), alpha = 0.2)+
+  geom_line(linewidth = 1, position = position_dodge(0.05), aes(color = cats__)) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  labs(x = "", y = "Probability") +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0)) +
+  facet_wrap(~var, ncol = 6, scales = "free_x")
+```
+#### Only Arboreal Plot
+
+```{r}
+rect <- data.frame(xmin=-1.59819, xmax=1.59819, ymin=-Inf, ymax=Inf)
+rect2 <- data.frame(xmin=-.974, xmax=.974, ymin=-Inf, ymax=Inf)
+rect3 <- data.frame(xmin=-.67449, xmax=.67449, ymin=-Inf, ymax=Inf)
+tt %>% filter(var != "log_Mass") %>% filter(cats__ == "A") %>% ggplot(aes(x = effect1__, y = estimate__, group = cats__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+    geom_rect(data=rect2, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+      geom_rect(data=rect3, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), alpha = 0.2)+
+  geom_line(linewidth = 1, position = position_dodge(0.05), aes(color = cats__)) + 
+  scale_fill_manual(values = pal[4]) +
+  scale_color_manual(values = pal[4]) +
+  labs(x = "", y = "Probability") +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  facet_wrap(~var, ncol = 6, scales = "free_x")
+
+ggsave(here("Plots","Ord_Plot_Arboreal_Only.pdf"), height = 10, width = 10)
+```
 
 # Probability Plots 
 
-
+## All 
 Looping over `conditional_effects` plots
 Dont Run
 ```{r message = FALSE, warning=FALSE}
@@ -333,4 +459,5 @@ l4 <- plot(conditional_effects(list_o2_lm$Uol, categorical = TRUE, prob = 0.89),
 ggsave( here("Plots","Ord2_compare_1.pdf"), width = 8, height = 5)
 ggsave( here("Plots","Ord2_compare_1.png"), width = 8, height = 5)
 ```
+
 

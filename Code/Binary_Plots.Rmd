@@ -19,87 +19,15 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
 here::i_am("README.md")
 here()
 
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
 # Models
 
-list_o2_lm <- read_rds(here("Data","binary_lm_models.Rds"))
-list_o2_gm <- read_rds(here("Data","binary_gm_models.Rds"))
+list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+list_b_gm <- read_rds(here("Data","B_gm_mods_mis.Rds"))
 ```
 
-data 
-```{r message = FALSE, warning=FALSE}
-dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
-  select(!NOTES) %>% 
-# Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
-                             Loc_mode_Ordinal == "A"  ~ "A",
-                             Loc_mode_Ordinal == "Sc" ~ "Sc",
-                             Loc_mode_Ordinal == "T"  ~ "T",
-                             Loc_mode_Ordinal == "Is" ~ "Is",
-                             Loc_mode_Ordinal == "Sf" ~ "Sf",
-                             Loc_mode_Ordinal == "Ss" ~ "Ss",
-                             TRUE ~ NA),
-         Loc_Ord = as.ordered(Loc_Ord),
-         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
-         # Combining the Intersurface and Semifossorial
-         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
-                              Loc_mode_Ordinal == "A" ~ "A",
-                              Loc_mode_Ordinal == "Sc" ~ "Sc",
-                              Loc_mode_Ordinal == "T" ~ "T",
-                              Loc_mode_Ordinal == "Is" ~ "Sf",
-                              Loc_mode_Ordinal == "Sf" ~ "Sf",
-                              Loc_mode_Ordinal == "Ss" ~ "Ss",
-                             TRUE ~ NA),
-         Loc_Ord2 = as.ordered(Loc_Ord2),
-         Loc_Ord2 = fct_relevel(Loc_Ord2, c("G","A","Sc","T","Sf","Ss")),
-         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
-                             Loc_mode_Bindary == "Tree" ~ 1,
-                             TRUE ~ NA
-                             ),
-        # Loc_bin = as.factor(Loc_bin),
-         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
-         log_Mass = log(Mass_grams)) %>% 
-    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
-  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
-  relocate(Loc_Ord2, .after = Loc_Ord) %>%
-  relocate(log_Mass, .before = Skl) %>% 
-#################
-#Calculate Indices!
-#################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
-         HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
-         OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
-         MANUS = Ppl / Mcl,        # MANUS index
-         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
-         PES = Pppl / Mtl,         # PES INdex
-         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
-         ) %>% 
-    # geometric mean
-  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
-  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
-  relocate(gm, .before = log_Mass) %>% 
-  mutate_at(vars(19:73), log) %>% 
-  mutate_at(vars(17:95), scale2)
-
-spp_obs <- dat$Taxon_Upham_style %>% unique()
-```
 
 
 some colors
@@ -118,17 +46,28 @@ Here i'm focusing on the slope of the phenotype
 ## Extract Slopes  
 
 #### Helper Functions
+
 ```{r message = FALSE, warning=FALSE}
 # Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
 cln <- function(df) as_draws_df(df)[2] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
+# Same for missing
+cln2 <- function(df) as_draws_df(df)[17] %>% gather(var, val) %>% mutate(val = inv_logit_scaled(val))
+```
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+lms <- map(list_b_lm[2:23], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_lm[24:43], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms <- lms %>% bind_rows(lms2)
+rm(lms2)
 ```
 
 #### Log_mass Slope DF
 ```{r message = FALSE, warning=FALSE}
-#run  model
-lms <- map(list_o2_lm, cln) %>% 
-  bind_rows()
-
 #list of slopes in order of means
 nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
 
@@ -155,9 +94,17 @@ sigs_lm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
 #### Geometric_mean Slope DF  
 
 ```{r message = FALSE, warning=FALSE}
-#run  model
-gms <- map(list_o2_gm, cln) %>% 
-  bind_rows()
+
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+gms <- map(list_b_gm[2:23], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+gms2 <- map(list_b_gm[24:43], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+gms <- gms %>% bind_rows(gms2)
+rm(gms2)
+
 
 #list of slopes in order of means
 nms_gm <- gms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
@@ -371,77 +318,204 @@ ggsave(here("Plots/Binary_Modeling_Effects.pdf"), height = 9, width = 14)
 ggsave(here("Plots","Binary_Modeling_Effects.png"), height = 9, width = 14)
 ```
 
+#Prob Faceting  
 
-
-# Probability Plots 
-
-
-### Four plots for comparisons 
-
-Plot the 4 "best" predictors: Ppl, PES, HPI, and OLI
-These are the SAME as the ordinal models!
+## LM
 
 ```{r}
-p1 <- plot(conditional_effects(list_o2_lm$Ppl,  prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal)+ ylim(0,1) + xlim(NA, 4)
+sigs <- sigs_lm %>% filter(sigs == "sig") %>% select(var)
+sigs <- sigs$var
 
-p2 <- plot(conditional_effects(list_o2_lm$PES,  prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
+#Has to be done in 2 parts because the mi() and non-mi() conditional effects are different.
+misigs <- c("HPI", "Ipl", "MANUS", "MANUS2", "MRI", "Mtl", "PES", "PES2", "PRTI", "Ppl")
 
-p3 <- plot(conditional_effects(list_o2_lm$HPI,  prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
+nomisigs <- c("CI", "FEB", "Fl", "FRI", "HEB", "HRI", "Hl", "IM",  "OLI", "Rl", "TRI", "Ul", "Uol")
 
-p4 <- plot(conditional_effects(list_o2_lm$OLI,  prob = 0.89), plot=F, points = T)[[1]] +
-  scale_fill_manual(values = pal) +
-  scale_color_manual(values = pal) + ylim(0,1)
 
-(p1 + p2) / (p3 + p4) + plot_layout(guides = "collect") + plot_annotation(title = "Measurements with the largest effect sizes") & theme_bw()
 
-ggsave( here("Plots","Bin_compare_1.pdf"), width = 8, height = 5)
-ggsave( here("Plots","Bin_compare_1.png"), width = 8, height = 5)
 ```
 
 
+```{r}
+ttt2 <- list_b_lm[misigs]
 
-```{r warning = F}
-p1 <- as.data.frame(conditional_effects(list_o2_lm$Ppl,  prob = 0.89, points = TRUE)$'Ppl') %>% 
-  ggplot(aes(x=Ppl,y=estimate__)) + 
-  geom_ribbon(aes(ymin=lower__, ymax=upper__), alpha=0.2, fill = "#5e1ea6") +
-  geom_line(color = "#5e1ea6", linewidth = 1.3)+
-  labs(y="Probability",x="Ppl") + 
-      geom_point(aes(x = Ppl, y = Loc_bin), data = dat) +
-                   theme_bw()
+tt2 <- map(ttt2, ~ conditional_effects(.,
+                                       resp = "Locbin",
+                                       prob = 0.89)[2] %>%
+             as.data.frame() %>%
+             rename_with(~str_remove(.,"^.*\\.")) %>%
+             mutate(var = colnames(.)[1]) %>% 
+             select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
+  bind_rows() 
 
-p2 <- as.data.frame(conditional_effects(list_o2_lm$PES,  prob = 0.89, points = TRUE)$'PES') %>% 
-  ggplot(aes(x=PES,y=estimate__)) + 
-  geom_ribbon(aes(ymin=lower__, ymax=upper__), alpha=0.2, fill = "#5e1ea6") +
-  geom_line(color = "#5e1ea6", linewidth = 1.3)+
-  labs(y="Probability",x="PES") + 
-      geom_point(aes(x = PES, y = Loc_bin), data = dat) +
-                   theme_bw()
-
-p3 <- as.data.frame(conditional_effects(list_o2_lm$HPI,  prob = 0.89, points = TRUE)$'HPI') %>% 
-  ggplot(aes(x=HPI,y=estimate__)) + 
-  geom_ribbon(aes(ymin=lower__, ymax=upper__), alpha=0.2, fill = "#5e1ea6") +
-  geom_line(color = "#5e1ea6", linewidth = 1.3)+
-  labs(y="Probability",x="HPI") + 
-      geom_point(aes(x = HPI, y = Loc_bin), data = dat) +
-                   theme_bw()
-
-p4 <- as.data.frame(conditional_effects(list_o2_lm$OLI,  prob = 0.89, points = TRUE)$'OLI') %>% 
-  ggplot(aes(x=OLI,y=estimate__)) + 
-  geom_ribbon(aes(ymin=lower__, ymax=upper__), alpha=0.2, fill = "#62361B") +
-  geom_line(color = "#62361B", linewidth = 1.3)+
-  labs(y="Probability",x="OLI") + 
-      geom_point(aes(x = OLI, y = Loc_bin), data = dat) +
-                   theme_bw()
-
-(p1 + p2) / (p3 + p4) + plot_layout(guides = "collect") + plot_annotation(title = "Measurements with the largest effect sizes") & theme_bw()
-
-ggsave( here("Plots","Bin_compare_1.pdf"), width = 8, height = 5)
-ggsave( here("Plots","Bin_compare_1.png"), width = 8, height = 5)
 ```
+
+```{r}
+ttt1 <- list_b_lm[nomisigs]
+
+tt1 <- furrr::future_map(ttt1, ~ conditional_effects(.,  resp = "LocOrd2", prob = 0.89)[1] %>%
+            as.data.frame() %>%
+             rename_with(~str_remove(.,"^.*\\.")) %>%
+             mutate(var = colnames(.)[1]) %>% 
+             select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
+  bind_rows()  
+
+tt <- bind_rows(tt1, tt2)
+```
+
+plot
+
+```{r}
+tt %>% filter(var != "log_Mass") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2)+
+  geom_line(linewidth = 1, position = position_dodge(0.05)) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  labs(x = "", y = "Probability") +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  facet_wrap(~var, ncol = 6, scales = "free_x")
+```
+#### Fancier
+
+```{r}
+m <- as.factor(nms$var)
+m <- fct_rev(m)
+rect <- data.frame(xmin=-1.59819, xmax=1.59819, ymin=-Inf, ymax=Inf)
+rect2 <- data.frame(xmin=-.974, xmax=.974, ymin=-Inf, ymax=Inf)
+rect3 <- data.frame(xmin=-.67449, xmax=.67449, ymin=-Inf, ymax=Inf)
+tt %>%ggplot(aes(x = effect1__, y = estimate__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+    geom_rect(data=rect2, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+      geom_rect(data=rect3, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, fill = '#0D7E9A')+
+  geom_line(linewidth = 1, position = position_dodge(0.05), color = '#0D7E9A') + 
+  labs(x = "", y = "Probability") +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  facet_wrap(~fct_relevel(var, nms$var), ncol = 6, scales = "free_x")
+
+ggsave(here("Plots","Bin_Plot.pdf"), height = 10, width = 10)
+```
+
+
+## GM
+
+```{r}
+sigs <- sigs_gm %>% filter(sigs == "sig") %>% select(var)
+sigs <- sigs$var
+
+#Has to be done in 2 parts because the mi() and non-mi() conditional effects are different.
+misigs <- c("HPI", "Ipl", "MANUS", "MANUS2", "MRI", "Mtl", "PES", "PES2", "PRTI", "Ppl")
+
+nomisigs <- c("CI", "FEB", "Fl", "FRI", "HEB", "HRI", "Hl", "IM",  "OLI", "Rl", "TRI", "Ul", "Uol")
+
+```
+
+
+```{r}
+ttt2 <- list_b_gm[misigs]
+
+tt2 <- map(ttt2, ~ conditional_effects(.,
+                                       resp = "Locbin",
+                                       prob = 0.89)[2] %>%
+             as.data.frame() %>%
+             rename_with(~str_remove(.,"^.*\\.")) %>%
+             mutate(var = colnames(.)[1]) %>% 
+             select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
+  bind_rows() 
+
+```
+
+```{r}
+ttt1 <- list_b_gm[nomisigs]
+
+tt1 <- furrr::future_map(ttt1, ~ conditional_effects(.,  resp = "LocOrd2", prob = 0.89)[1] %>%
+            as.data.frame() %>%
+             rename_with(~str_remove(.,"^.*\\.")) %>%
+             mutate(var = colnames(.)[1]) %>% 
+             select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
+  bind_rows()  
+
+tt <- bind_rows(tt1, tt2)
+```
+
+plot
+
+```{r}
+tt %>% filter(var != "gm") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2)+
+  geom_line(linewidth = 1, position = position_dodge(0.05)) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  labs(x = "", y = "Probability") +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  facet_wrap(~var, ncol = 6, scales = "free_x")
+```
+#### Fancier
+
+```{r}
+m <- as.factor(nms$var)
+m <- fct_rev(m)
+rect <- data.frame(xmin = -0.67449, xmax = 0.67449, ymin=-Inf, ymax=Inf)
+rect2 <- data.frame(xmin = -0.84162, xmax = 0.84162, ymin=-Inf, ymax=Inf)
+rect3 <- data.frame(xmin = -1.03643, xmax = 1.03643, ymin=-Inf, ymax=Inf)
+rect4 <- data.frame(xmin = -1.28155, xmax = 1.28155, ymin=-Inf, ymax=Inf)
+rect5 <- data.frame(xmin = -1.64485, xmax =-1.64485, ymin=-Inf, ymax=Inf)
+tt %>%ggplot(aes(x = effect1__, y = estimate__)) + 
+  geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+  geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+    geom_rect(data=rect2, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+      geom_rect(data=rect3, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+  geom_rect(data=rect4, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+  geom_rect(data=rect5, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.1,
+              inherit.aes = FALSE) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, fill = '#009B3A')+
+  geom_line(linewidth = 1, position = position_dodge(0.05), color = '#009B3A') + 
+  labs(x = "", y = "Probability") +
+  #xlim(-2.5, 2.5) +
+  theme_bw() +
+  theme(legend.position = c(1,0), # top left position
+    legend.justification = c(3.5, 0),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  facet_wrap(~fct_relevel(var, nms$var), ncol = 6, scales = "free_x")
+
+ggsave(here("Plots","Bin_Plot_GM.pdf"), height = 10, width = 10)
+```
+
+
+# Prob Facet Combo
+
+Printing a plot like this with both GM and LM curves.
+Need to combine those dataframes, then create another column of `control` (LM or GM), then plot, and color, fill, and linetype by control. May be too much information, so perhaps I can only do one ribbon and two lines?
+
 
