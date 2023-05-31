@@ -126,33 +126,14 @@ A <- ape::vcv.phylo(tr, corr = TRUE)
 
 ## Description of Missing Data
 
-*Linear measurements with complete data*
-log_Mass, Sl, Sh, Hl, Hsw, Hdw, Uol, Ul, Rl, Fl, Fsw, Fdw, Tl, Tmw
+See `Binary_Missing_Models.Rmd` for details on missing data.
+Here I will just load the lists
 
-Removing Sh from all analyses
-
-*indices with complete data:*
- SI, HRI, HEB, OLI, BI, IM, FRI, FEB, CI, TRI
- 
 ```{r}
-var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
 ```
 
-*All variables with <= 31% missing data:*
-MANUS2, Ipl, PES, Pppl, Mtl, MANUS, Ppl, Mcl, PRTI
-These variables will be included in the study, and missing values will be imputed.
-We added in a few more with between 30-50 missing data because they are good measurements:
-Tpw, Isl, Il, Pel, Hpw, HPI, Mcw, MRI, Ppw, PES2, CI
-```{r}
-var_missing <- c("MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl")
-```
-
-
-*All variables with > 31% missing data:*
-Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, *Cl*, Fbpw, Pipl, *PES2*, *Ppw*, *Mcw*, *MRI*, *Hpw*, *Pel*, *Il*, *Isl*, *Tpw*, Fbl, *HPI*, IRI, PR, Hdcw, DI, Tdw
-
-
-The percentages are stored in the df `Missing_Data_Percents.csv`
 
 
 

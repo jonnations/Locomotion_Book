@@ -10,7 +10,7 @@ There are two parts: Probability plots and Forest Plots
 Packages and Data
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes)
 
 options(brms.backend = "cmdstanr")
 
@@ -21,6 +21,8 @@ here()
 
 var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
 
 # Models
 
@@ -70,6 +72,10 @@ rm(lms2)
 ```{r message = FALSE, warning=FALSE}
 #list of slopes in order of means
 nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+m <- as.factor(nms$var)
+m <- fct_rev(m)
+m %>% saveRDS(here("Data", "Order_Names.Rds"))
 
 # New df to demonstrate which vars don't overlap 0 at 89%
 sigs_lm <- lms %>% group_by(var) %>% median_qi(val - 0.5, .width = c(0.89)) %>% 
@@ -360,13 +366,13 @@ tt1 <- furrr::future_map(ttt1, ~ conditional_effects(.,  resp = "LocOrd2", prob 
              select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
   bind_rows()  
 
-tt <- bind_rows(tt1, tt2)
+lm_res <- bind_rows(tt1, tt2)
 ```
 
 plot
 
 ```{r}
-tt %>% filter(var != "log_Mass") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
+lm_res %>% filter(var != "log_Mass") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
   geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
   geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2)+
   geom_line(linewidth = 1, position = position_dodge(0.05)) + 
@@ -388,7 +394,7 @@ m <- fct_rev(m)
 rect <- data.frame(xmin=-1.59819, xmax=1.59819, ymin=-Inf, ymax=Inf)
 rect2 <- data.frame(xmin=-.974, xmax=.974, ymin=-Inf, ymax=Inf)
 rect3 <- data.frame(xmin=-.67449, xmax=.67449, ymin=-Inf, ymax=Inf)
-tt %>%ggplot(aes(x = effect1__, y = estimate__)) + 
+lm_res %>%ggplot(aes(x = effect1__, y = estimate__)) + 
   geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
   geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
               alpha=0.1,
@@ -451,13 +457,13 @@ tt1 <- furrr::future_map(ttt1, ~ conditional_effects(.,  resp = "LocOrd2", prob 
              select(c("var", "effect1__", "estimate__", "cond__", "lower__", "upper__"))) %>%
   bind_rows()  
 
-tt <- bind_rows(tt1, tt2)
+gm_res <- bind_rows(tt1, tt2)
 ```
 
 plot
 
 ```{r}
-tt %>% filter(var != "gm") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
+gm_res %>% filter(var != "gm") %>% ggplot(aes(x = effect1__, y = estimate__)) + 
   geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
   geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2)+
   geom_line(linewidth = 1, position = position_dodge(0.05)) + 
@@ -481,7 +487,7 @@ rect2 <- data.frame(xmin = -0.84162, xmax = 0.84162, ymin=-Inf, ymax=Inf)
 rect3 <- data.frame(xmin = -1.03643, xmax = 1.03643, ymin=-Inf, ymax=Inf)
 rect4 <- data.frame(xmin = -1.28155, xmax = 1.28155, ymin=-Inf, ymax=Inf)
 rect5 <- data.frame(xmin = -1.64485, xmax =-1.64485, ymin=-Inf, ymax=Inf)
-tt %>%ggplot(aes(x = effect1__, y = estimate__)) + 
+gm_res %>%ggplot(aes(x = effect1__, y = estimate__)) + 
   geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
   geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
               alpha=0.1,
@@ -518,4 +524,145 @@ ggsave(here("Plots","Bin_Plot_GM.pdf"), height = 10, width = 10)
 Printing a plot like this with both GM and LM curves.
 Need to combine those dataframes, then create another column of `control` (LM or GM), then plot, and color, fill, and linetype by control. May be too much information, so perhaps I can only do one ribbon and two lines?
 
+```{r}
+lm_res <- lm_res %>% mutate(cond = "lm")
+gm_res <- gm_res %>% mutate(cond = "gm")
+
+all_res <- bind_rows(lm_res, gm_res) %>% nm_change()
+```
+
+This is great!
+Getting there. Things to do:
+Individual xlim for each facet using ggh4x - -5 and 5 for all.
+Change x axis breaks: -4, -2, 0, 2, 4 (?)
+Change y axis breaks: 0, 0.5, 1
+Rename all variables - code exists for other plot! Should be easy. this should actually be a function!
+Remove grey facet headers. 
+
+```{r}
+nms2 <- nm_change(nms) %>% drop_na()
+
+m <- as.factor(nms2$var)
+m <- fct_rev(m)
+n = 20
+a = seq(from = -0.01, to = - 1.64485, length.out = n)
+b = seq(from = 0.01, to =  1.64485, length.out = n)
+c = rep(-Inf, times = n)
+d = rep(Inf, times = n)
+rect <- data.frame(xmin = a, xmax = b, ymin = c, ymax = d)
+
+all_res %>% ggplot(aes(x = effect1__, y = estimate__)) + 
+  #geom_vline(xintercept = 0, linetype = 2, linewidth = 0.25) +
+    geom_rect(data=rect, aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),
+              alpha=0.035,
+              inherit.aes = FALSE) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cond), alpha = 0.18)+
+  geom_line(aes(color = cond, linetype = cond),linewidth = 0.5, position = position_dodge(0.05)) + 
+  labs(x = "", y = "Probability") +
+  scale_colour_manual(
+   values = c('#009B3A', '#0D7E9A'),
+   name = "Mass\nCorrection"
+  ) +
+    scale_fill_manual(
+   values = c('#009B3A', '#0D7E9A'),
+   name = "Mass\nCorrection"
+  ) +
+    scale_linetype_manual(
+   values = c(1, 2),
+   name = "Mass\nCorrection"
+  ) +
+  #xlim(-2.5, 2.5) +
+  theme_pander() +
+ theme(
+   legend.position = c(1,0), # top left position
+   legend.justification = c(1.4, -0.5),
+   panel.grid.major = element_blank(),
+   panel.grid.minor = element_blank(),
+   strip.text.x = element_text(size = 8),
+   axis.text.x=element_text(size = 6),
+   axis.text.y=element_text(size = 6),
+   #element_text(family = "Times"),
+   panel.background = element_rect(color = "black")
+   ) +
+  facet_wrap(~fct_relevel(var, nms2$var), ncol = 6, scales = "free_x",
+             labeller = label_wrap_gen(multi_line = TRUE)) +
+  ggh4x::facetted_pos_scales(x = scales)
+  #scale_x_continuous(
+  #limits =  c(NA, case_when(max(xlim) >= 4 ~ 4,
+  #                          TRUE ~ NA)),
+  #breaks =  c(-2, 0, 2, 4))
+
+ggsave(here("Plots","Bin_Plot_All.pdf"), height = 10, width = 10)
+```
+
+
+```{r}
+scales <- list(
+#1
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#2
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#3
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#4                   
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#5
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#6
+  scale_x_continuous(breaks = c(-2,0,2),
+                     limits = c(NA, NA)),
+#7
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#8                   
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#9
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#10
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#11
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#12                   
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(-1, 5)),
+#13
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#14
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA,NA)),
+#15
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#16                   
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#17
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, 5)),
+#18
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#19
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#20                   
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#21
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)),
+#22
+  scale_x_continuous(breaks = c(-2,0,2,4),
+                     limits = c(NA, NA)))
+```
 

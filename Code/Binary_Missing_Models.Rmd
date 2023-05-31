@@ -21,6 +21,8 @@ here()
 
 var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
 ```
 ### Load data  
 
@@ -106,7 +108,7 @@ pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
 ```{r}
 tr <- ape::read.nexus(
   here("Data","MCC_Upham_all_mammals.nex"))
-tr <- keep.tip(tr, spp_obs)
+tr <- ape::keep.tip(tr, spp_obs)
 A <- ape::vcv.phylo(tr, corr = TRUE)
 ```
 
@@ -132,10 +134,11 @@ Tpw, Isl, Il, Pel, Hpw, HPI, Mcw, MRI, Ppw, PES2, CI
 ```{r}
 var_missing <- c("MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl")
 ```
-
+*All variables with > 31% missing data:*
+Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, *Cl*, Fbpw, Pipl, *PES2*, *Ppw*, *Mcw*, *MRI*, *Hpw*, *Pel*, *Il*, *Isl*, *Tpw*, Fbl, *HPI*, IRI, PR, Hdcw, DI, Tdw
 
 ```{r}
-var_missing <- c("MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "Pdpw", "Dpw", "Pipw", "Pdpl", "Cal", "Anl", "Atw", "Csw", "Ccw", "Ctl", "Ctw", "Al", "Jl", "Ipw", "Dpl", "Pppw", "Skl", "Mtw", "Fbdw", "Fhd", "Fgh", "Fbmw", "Hhw", "Hhl", "HHRI", "HHW", "Cl", "Fbpw", "Pipl", "PES2", "Ppw", "Mcw", "MRI", "Hpw", "Pel", "Il", "Isl", "Tpw", "Fbl", "HPI", "IRI", "PR", "Hdcw", "DI", "Tdw")
+var_missing_complete <- c("MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "Pdpw", "Dpw", "Pipw", "Pdpl", "Cal", "Anl", "Atw", "Csw", "Ccw", "Ctl", "Ctw", "Al", "Jl", "Ipw", "Dpl", "Pppw", "Skl", "Mtw", "Fbdw", "Fhd", "Fgh", "Fbmw", "Hhw", "Hhl", "HHRI", "HHW", "Cl", "Fbpw", "Pipl", "PES2", "Ppw", "Mcw", "MRI", "Hpw", "Pel", "Il", "Isl", "Tpw", "Fbl", "HPI", "IRI", "PR", "Hdcw", "DI", "Tdw")
 
 var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
 
@@ -143,9 +146,6 @@ var_complete %>% write_rds(here("Data", "var_complete.Rds"))
 var_missing %>% write_rds(here("Data", "var_missing.Rds"))
 ```
 
-
-*All variables with > 31% missing data:*
-Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, *Cl*, Fbpw, Pipl, *PES2*, *Ppw*, *Mcw*, *MRI*, *Hpw*, *Pel*, *Il*, *Isl*, *Tpw*, Fbl, *HPI*, IRI, PR, Hdcw, DI, Tdw
 
 
 The percentages are stored in the df `Missing_Data_Percents.csv`
