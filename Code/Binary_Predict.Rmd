@@ -9,7 +9,7 @@ output: html_notebook
 Take model lists, then use them one by one to predict climbing in the fossil taxa.
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
+pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
 
 options(brms.backend = "cmdstanr")
 
@@ -27,142 +27,24 @@ source(here("Code","Name_Change.R"))
 
 ```
 
-### Load Extant data  
 
-```{r message = FALSE, warning=FALSE}
-dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
-  select(!NOTES) %>% 
-# Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
-                             Loc_mode_Ordinal == "A"  ~ "A",
-                             Loc_mode_Ordinal == "Sc" ~ "Sc",
-                             Loc_mode_Ordinal == "T"  ~ "T",
-                             Loc_mode_Ordinal == "Is" ~ "Is",
-                             Loc_mode_Ordinal == "Sf" ~ "Sf",
-                             Loc_mode_Ordinal == "Ss" ~ "Ss",
-                             TRUE ~ NA),
-         Loc_Ord = as.ordered(Loc_Ord),
-         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
-         # Combining the Intersurface and Semifossorial
-         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
-                              Loc_mode_Ordinal == "A" ~ "A",
-                              Loc_mode_Ordinal == "Sc" ~ "Sc",
-                              Loc_mode_Ordinal == "T" ~ "T",
-                              Loc_mode_Ordinal == "Is" ~ "B",
-                              Loc_mode_Ordinal == "Sf" ~ "B",
-                              Loc_mode_Ordinal == "Ss" ~ "B",
-                             TRUE ~ NA),
-         Loc_Ord2 = as.ordered(Loc_Ord2),
-         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
-         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
-                             Loc_mode_Bindary == "Tree" ~ 1,
-                             TRUE ~ NA
-                             ),
-        # Loc_bin = as.factor(Loc_bin),
-         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
-         log_Mass = log(Mass_grams)) %>% 
-    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
-  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
-  relocate(Loc_Ord2, .after = Loc_Ord) %>%
-  relocate(log_Mass, .before = Skl) %>% 
-#################
-#Calculate Indices!
-#################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
-         HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
-         OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
-         MANUS = Ppl / Mcl,        # MANUS index
-         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
-         PES = Pppl / Mtl,         # PES INdex
-         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
-         ) %>% 
-    # geometric mean
-  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
-  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
-  relocate(gm, .before = log_Mass) %>% 
-  mutate_at(vars(19:73), log) %>% 
-  mutate(Fos = FALSE)
-
-spp_obs <- dat$Taxon_Upham_style %>% unique()
-
-pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
-```
-
-### Load Fossil Data  
+### Load Data  
 
 ```{r}
-fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8HfhcJNJ-jtYK10qlsdLi4i38tVc/edit#gid=0", na = c("NA", "?", "", "NULL")) %>% 
-  # Selecting only the lines with data
-  # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
-  slice (1:9) %>% 
-  select(!NOTES) %>% 
-  mutate(log_Mass = log(Mass_grams)) %>% 
-#################
-#Calculate Indices!
-#################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
-         HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
-         OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
-         MANUS = Ppl / Mcl,        # MANUS index
-         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
-         PES = Pppl / Mtl,         # PES INdex
-         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
-         ) %>% 
-  mutate_at(vars(14:68), log) %>% 
-  mutate(Fos = TRUE)
-```
+dat <- read_csv(here("Data", "Extant_Master.csv"))
 
-### Combine, scale, and split
-
-```{r}
-dat2 <- bind_rows(dat, fdat) %>% 
-  mutate_at(vars(17:95), scale2)
-
-dat <- dat2 %>% filter(Fos == FALSE) %>% select(!Fos)
-
-fdat <- dat2 %>% filter(Fos == TRUE) %>% select(!Fos)
-
-rm(dat2)
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
 
 fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
 
-pred_vars <- fdat_cln[c(13:79)]
+#variables to do fossil predictions with
+pred_vars <- fdat_cln[c(9:83)]
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
 ```
 
 ### Load & Subset Models
@@ -179,7 +61,10 @@ names(list_b2)
 rm(list_b_lm)
 ```
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
 # Predictions  
+
+## Fossil Functions
 ```{r}
 colz <- c("Genus_species", "log_Mass", names(list_b2), "Specimen_Num")
 
@@ -195,72 +80,14 @@ nnn <- function(mod, nm){
     as.data.frame() %>% 
     select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
     mutate(var = {{nm}})
-  
 }
 
 ```
 
-```{r}
-tictoc::tic()
-nm <- names(list_b2)
-pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows()
-tictoc::toc()
-
-pred_df %>% write_csv(here("Data", "Fossil_Predictions.csv"))
-```
-
-
-```{r warning=FALSE}
-pred_df %>% 
-  ggplot(aes(x = Prob_of_Climbing, y = Specimen_Num, color = Genus_species)) +
-  stat_pointinterval(.width = .5) +
-  geom_vline(xintercept = c(0,1)) +
-  facet_wrap(~var)
-```
-
-
-Very cool plot below!!!!
-
-Sinodelphys and Eomaia:
-The descriptions match the MANUS measurements, and rightly so!
-based on the length of the individual appendicular skeleton bits, they are shorter than usual, however, the front and rear limbs are more SIMILAR in length (IM) than most non-climbing small mammals! Very cool. 
-
+# Extant Functions
 
 ```{r}
-var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") #%>% as_data_frame() #%>%  nm_change()
-
-#just the "sigs"
-var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-# just the really important sigs
-var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-#pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
-
-pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
-
-pred_df %>% mutate(var =  as.factor(var)) %>% 
-  filter(var %in% var_ord2) %>% 
-  ggplot(aes(x = Prob_of_Climbing, 
-             y = fct_relevel(var,var_ord2), 
-             #y = var,
-             color = Genus_species)) +
-  geom_vline(xintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = .5, linewidth = 0.75, position = position_dodge(width = -.7)) + xlim(0,1) +
-  scale_color_manual(values = pal) + theme_pander() + 
-  theme_pander() 
- #theme(panel.grid.major = element_blank(),
- #  panel.grid.minor = element_blank())
-
-#ggsave(here("Plots", "fos_pred1.pdf"), height = 18, width = 8)
-```
-
-
-## Extant "Model Species"
-
-Trying out a few different ways here.
-What should we do? Treat these like fossils? Yes, and maybe add the full predictions in there too. 
-```{r}
-
-model_dat <- dat %>% filter(Genus_species %in% c("Didelphis_virginiana", "Sciurus_carolinensis", "Atelerix_albiventris", "Tupaia_glis", "Tupaia_tana", "Solenodon_paradoxus", "Hemicentetes_semispinosus", "Cynocephalus_volans"))
+model_dat <- dat %>% filter(Genus_species %in% c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Sorex_trowbridgii", "Urocitellus_columbianus", "Monodelphis_domestica"))
 
 nnn2 <- function(mod, nm){
   {{mod}} %>% 
@@ -285,53 +112,88 @@ nnn3 <- function(mod, nm){
     as.data.frame() %>% 
     select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
     mutate(var = {{nm}})
-  
 }
 
+
+extant_climb <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis")
+
+extant_ground <- c("Hemicentetes_semispinosus", "Atelerix_albiventris", "Sorex_trowbridgii", "Urocitellus_columbianus", "Monodelphis_domestica")
+
+extant <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Sorex_trowbridgii", "Urocitellus_columbianus", "Monodelphis_domestica")
+
+
+old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
+
+multi <- c("Rugosodon_eurasiaticus", "Jeholbaatar_kielanae", "Filikomys_primaevus", "Ptilodus_kummae", "Kryptobaatar_dashzevegi")
+
+primate <- c("Plesiadapis_cookei", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
 ```
+
+### Plot helpers
+```{r}
+var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
+#just the "sigs"
+var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+# just the really important sigs
+var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+#pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
+#with the mean probability
+var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
+
+```
+
 
 ```{r}
 nm <- names(list_b2)
-pred_df_ext_full <- map2(list_b2, nm, ~nnn2(.x, .y)) %>% bind_rows()
-pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>% bind_rows()
+
+pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
+  write_csv(here("Data", "Fossil_Predictions.csv")) %>% 
+  mutate(method = "Fossil",
+         substrate = NA)
+
+
+pred_df_ext_full <- map2(list_b2, nm, ~nnn2(.x, .y)) %>% 
+  bind_rows() %>% 
+  mutate(method = "Full",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>% 
+  bind_rows() %>% 
+  mutate(method = "Fossil",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+
+pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_ord3) %>% 
+  mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
+  #THIS IS AVERAGING PER SPECIES
+  group_by(substrate, method, var, Genus_species, draw) %>% 
+  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
+  write_csv(here("Data", "All_Predictions.csv"))
 ```
-
-
+## Add means to the plots?
+Isn't really a good idea because there is uneven sampling across measurements
 ```{r}
-pp1 <- pred_df_ext_full %>% mutate(var =  as.factor(var)) %>% 
-  filter(var %in% var_ord3) %>% 
-  ggplot(aes(y = Prob_of_Climbing, 
-             x = fct_relevel(var,var_ord3), 
-             #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = .5, linewidth = 0.75, position = position_dodge(width = -.6)) + ylim(0,1) +
-  scale_color_manual(values = pal) + theme_pander() + 
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) ) 
-
-pp2 <- pred_df_ext_fos %>% mutate(var =  as.factor(var)) %>% 
-  filter(var %in% var_ord3) %>% 
-  ggplot(aes(y = Prob_of_Climbing, 
-             x = fct_relevel(var,var_ord2), 
-             #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = .5, linewidth = 0.75, position = position_dodge(width = -.6)) + ylim(0,1) +
-  scale_color_manual(values = pal) + theme_pander() + theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) )
-
-
-pp1 / pp2 
-
-ggsave(here("Plots", "Extant_Testing.pdf"), width = 10, height = 6)
+#meandf <- pred_all %>% group_by(substrate, method, Genus_species, draw) %>% 
+#  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% 
+#  ungroup() %>% 
+#  mutate(var = "Mean")
+#
+#pred_all <- bind_rows(pred_all, meandf)
 ```
+
+
+
 
 # Whole Shebang  
 
-Plot everything together
 
-function
+### function
 ```{r}
 hplot <- function(groups, method){
   pred_all %>% filter(Genus_species %in% {{groups}},
@@ -351,204 +213,88 @@ hplot <- function(groups, method){
         panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) )
 }
 
-extant <- c("Didelphis_virginiana", "Sciurus_carolinensis", "Atelerix_albiventris", "Tupaia_glis", "Cynocephalus_volans")
 
-old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
-
-new <- c("Filikomys_primaevus", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
 ```
 
 ###  big df
 
-```{r}
-pred_df_ext_full <- pred_df_ext_full %>% mutate(method = "Full")
-pred_df_ext_fos <- pred_df_ext_fos %>% mutate(method = "Fossil")
-pred_df <- pred_df %>% mutate(method = "Fossil")
 
-pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_ord3)
-```
 
 ### Big Plot
 ```{r}
-pl1 <- hplot(extant, "Full") + ggtitle("Extant Full Predictions - incorporating phylogeny & intraspecific variation")
-pl2 <- hplot(extant, "Fossil") + ggtitle("Extant as Fossils - predicting these values without phylogeny & intraspecific variation, same as fossils")
-pl3 <- hplot(old, "Fossil") + ggtitle("Old Species")
-pl4 <- hplot(new, "Fossil") + ggtitle("Not as Old Species")
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Mesozoic Mammal Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
 
-pl1 / pl2 / pl3 / pl4
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
 
-ggsave(here("Plots", "Predict_All_1.pdf"), height = 11, width = 13)
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + 
+  theme(#axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+
+t3 <- pl5 / pl6 /pl7
+
+t3
+
+ggsave(here("Plots", "Predict_Fossil.pdf"), height = 9, width = 13)
+
 ```
 
-## Add Average
-
-This is the current project: There are a different number of specimens for these extant taxa. I want to average over their predictions.
-
-This is where I'm at now: I can bigtime simplify this prediction function by dropping all but the relevant columns. This is a change that should be made to all the `nnn` functions above!!! Then I can split it up somehow by species and specimen, sum the columns, divide by n(specimens), and then I have an averaged prediciton to plot!
 
 ```{r}
-##########
-#CURRENT OUTPUT IS REALLY NICE! 
-# AFTER, I CAN DROP THE HL COLUMN (the {{nm}} column in a bigger function) then add them all together like usual.
-#nnn2 <- function(mod, nm){
-tmp <- list_b2$Hl %>% 
-    add_epred_draws(newdata = model_dat %>% select(Genus_species, Taxon_Upham_style, Hl, log_Mass, Specimen_Num), 
-                    value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
-                    re_formula = NULL) ##%>% view()
-#   as.data.frame() %>% 
-#   select(Genus_species, Prob_of_Climbing) %>% 
-#   mutate(var = {{nm}})
-  
-tmp %>% group_by(Genus_species) %>% distinct(Specimen_Num) %>% count()
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
 
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + 
+  theme(#axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),)
+
+
+t1 <- pl1 / pl2 + plot_layout(guides = "collect")
+
+t2 <- pl3 / pl4 + plot_layout(guides = "collect")
+
+wrap_plots(t1, t2, ncol = 1)
+
+ggsave(here("Plots", "Predict_Extant.pdf"), height = 11, width = 13)
 
 ```
- try again, working one by one
- 
-```{r}
-names(pred_all)
-```
-
-```{r warning = FALSE}
-pred_all %>% ungroup() %>% 
-  filter(method == "Fossil") %>% 
-  ggplot(aes(x = Prob_of_Climbing, y = Specimen_Num, color = Genus_species)) +
-  stat_pointinterval(.width = .5) +
-  facet_wrap(~var)
-  
-```
-
-
-
-# Whole Shebang II
-
-Plot everything together
-
-function
-```{r}
-hplot <- function(groups, method){
-  pred_all %>% filter(Genus_species %in% {{groups}},
-                         method == {{method}}) %>% 
-    mutate(var =  as.factor(var)) %>% 
-  ggplot(aes(y = Prob_of_Climbing, 
-             x = fct_relevel(var,var_ord3), 
-             #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = .5, linewidth = 0.75, position = position_dodge(width = -.6)) + ylim(0,1) +
-    labs(x = "", y = "Probability of Climbing") +
-  scale_color_manual(values = pal) + theme_pander() + 
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) )
-}
-
-extant <- c("Didelphis_virginiana", "Sciurus_carolinensis", "Atelerix_albiventris", "Tupaia_glis", "Cynocephalus_volans")
-
-old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
-
-new <- c("Filikomys_primaevus", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
-```
-
-###  big df
 
 ```{r}
-pred_df_ext_full <- pred_df_ext_full %>% mutate(method = "Full")
-pred_df_ext_fos <- pred_df_ext_fos %>% mutate(method = "Fossil")
-pred_df <- pred_df %>% mutate(method = "Fossil")
+wrap_plots(t1, t2, t3, ncol = 1)
 
-pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_ord3)
-```
-
-### Big Plot
-```{r}
-pl1 <- hplot(extant, "Full") + ggtitle("Extant Full Predictions - incorporating phylogeny & intraspecific variation")
-pl2 <- hplot(extant, "Fossil") + ggtitle("Extant as Fossils - predicting these values without phylogeny & intraspecific variation, same as fossils")
-pl3 <- hplot(old, "Fossil") + ggtitle("Old Species")
-pl4 <- hplot(new, "Fossil") + ggtitle("Not as Old Species")
-
-pl1 / pl2 / pl3 / pl4
-
-ggsave(here("Plots", "Predict_All_1.pdf"), height = 11, width = 13)
-```
-
-## Add Average
-
-This is the current project: There are a different number of specimens for these extant taxa. I want to average over their predicions.
-
-This is where I'm at now: I can bigtime simplify this prediction function by dropping all but the relevant columns. This is a change that should be made to all the `nnn` funcitons above!!! Then I can split it up somehow by species and specimen, sum the columns, divide by n(specimens), and then I have an averaged prediciton to plot!
-
-```{r}
-##########
-#CURRENT OUTPUT IS REALLY NICE! 
-# AFTER, I CAN DROP THE HL COLUMN (the {{nm}} column in a bigger function) then add them all together like usual.
-#nnn2 <- function(mod, nm){
-tmp <- list_b2$Hl %>% 
-    add_epred_draws(newdata = model_dat %>% select(Genus_species, Taxon_Upham_style, Hl, log_Mass, Specimen_Num), 
-                    value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
-                    re_formula = NULL) ##%>% view()
-#   as.data.frame() %>% 
-#   select(Genus_species, Prob_of_Climbing) %>% 
-#   mutate(var = {{nm}})
-  
-tmp %>% group_by(Genus_species) %>% distinct(Specimen_Num) %>% count()
-
-tmp %>% group_by(Genus_species) %>% 
-  case_when(
-    distinct(Specimen_Num) %>% count() > 1,
-    mutate(Prob_of_Climbing = group_by(Specimen_Num) %>%
-             
-    
-    
-    species == "Droid" ~ "robot",
-    .default = "other"
-
+ggsave(here("Plots", "Predict_All.pdf"), height = 19, width = 13)
 ```
 
 
-
-
-
-
-
-# testing different prediction methods  
-
-There are several ways of handling the new levels. 
-1) exclude phylo from the `re_formula`
-If included:
-2) sample_new_levels = "uncertainty" (default)
-3) sample_new_levels = "gaussian"
-4) sample_new_levels = "old_levels"
-
-we can also vary the re_formula from NA (no group level), null (all group level), but with the fossils NA works much much better. 
-
-Nothing seemed to happen when adding in the phylogeny that includes the missing variables. 
-
-
-
-
-## Adding a new phylogeny at the prediction stage
-Testing with simulation
-FIgure out the right tree - one where the missing data taxa are on long branches not close to anything
-
-```{r}
-set.seed(19)
-plot(rcoal(20, min = 0, max = 5))
-```
-perfect, use t10, t3, and t13
-```{r}
-set.seed(19)
-simtr <- rcoal(20, min = 0, max = 5)
-A = vcv.phylo(simtr, corr = TRUE)
-a = rep(0:1, each = 10)
-b = c(rnorm(10, -1, 0.2), rnorm(10, 0.5, 0.2))
-sdat = data.frame(phylo = simtr$tip.label, y = a, x = b)
-ggplot(sdat, aes(y=y, x=x)) + geom_point()
-#3 missing values
-sdat <- sdat %>% mutate(y = "is.na<-"(y, phylo %in% c('t15', 't18', 't19', 't13')))
-```
-
+# Testing
+## What is predict doing?
 
 ```{r warning = FALSE, message = F}
 m1 <- brm(y ~ x + (1|gr(phylo, cov = A)),

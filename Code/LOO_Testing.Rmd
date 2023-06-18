@@ -1,0 +1,313 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+Predicting binary climbing classifications (tree vs. ground) using postcranial measurements. Models will also incorperate intraspecific variation and phylogenetic variation.
+
+
+Results:
+Most of the models we were using are horribly overfit. Predictions are at 100%, but there are MANY pareto-k values >0.7 (like 16.5% of all points)
+
+This is unacceptable. 
+
+ANd this is why: "If p_loo <𝑝 and the number of parameters 𝑝 is relatively large compared to the number of observations (e.g., 𝑝>𝑁/5), it is likely that the model is so flexible or the population prior so weak that it’s difficult to predict the left out observation (even for the true model). This happens, for example, in random effect models with **a few observations per random effect**, and **Gaussian processes and spatial models with short correlation lengths**."
+[*SOURCE*](https://mc-stan.org/loo/articles/online-only/faq.html#high_khat)
+
+Our data has both few observations per random effect (Genus_species) and very short correlation lengths (think very closely related taxa). THis is especially true with a MASSIVE tree, where species that diverged 2 mya are incredibly correlated when compared to a monotreme. 
+
+Dropping the 1|species term, then setting the beta priors a little looser and the sd priors a little higher greatly limits the high pareto-k values. It also generates more incorrect predicitons, but, in this Hl model, they are around 5% of species (so even fewer for the total dataset!!) 
+
+When there are mildly regulating priors on the sd term, the models are overfit. Changing the phylo_sd from N(0, 1.5) to N(0, 0.5) in the *same model* reduces the number of pareto-k >0.7 from <1% to 22%. 
+
+Basically, models need to be run again. 
+
+Intersting observation: when tightening the sd priors, the Genus_species sd becomes LARGER than the phylo sd, while with a vague prior the phylo sd is larger. hmmm. 
+
+# Preparation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+### Load data  
+
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "B",
+                              Loc_mode_Ordinal == "Sf" ~ "B",
+                              Loc_mode_Ordinal == "Ss" ~ "B",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+# Answers to LOO problems
+
+What have I found:
+
+No way to eliminate all >0.7 estimates when using both intraspecific and phylo group_level effects. This is likely because of  "random effect models with a few observations per random effect, and Gaussian processes and spatial models with short correlation lengths." see this [link](https://mc-stan.org/loo/articles/online-only/faq.html#high_khat).
+
+Most of the 
+                
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+m1 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 1), class = sd)))
+
+m2 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(student_t(3, 0, 1), class = sd)))
+
+m3 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(student_t(3, 0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(student_t(3, 0, 1), class = sd)))
+
+m4 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(student_t(3, 0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 1), class = sd)))
+
+m5 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(student_t(3, 0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.7), class = sd)))
+
+m6 <- brm(Loc_bin ~ Hl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.7), class = sd)))
+
+m7 <- brm(Loc_bin ~ Hl + log_Mass +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.7), class = sd)))
+
+m8 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.7), class = sd)))
+
+m9 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m10 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 0.5), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m11 <- brm(Loc_bin ~ Hl + log_Mass +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m12 <- brm(Loc_bin ~ Hl + log_Mass +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m13 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 0.5), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m14 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m15 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 0.5), class = sd)))
+
+m16 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1.5), class = b),
+                prior(normal(0, 1.5), class = sd)))
+
+m17 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(), seed = 1256, 
+          data = dat, refresh = 0, cores = 4,
+          prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, .25), class = sd)))
+```
+
+
+
+```{r}
+loo(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16)
+```
+
+
+pretty good models: m7, m11, m12, m9 (19 >0.7), m13, m15
+
+## test preds
+
+Testing predictions, seeing how good they do
+Most of the models we were using are horribly overfit. Predictions are at 100%, but there are MANY pareto-k values >0.7 (like 16.5% of all points)
+
+This is unacceptable. 
+
+```{r}
+pre <- epred_draws(m14, newdata = dat %>% filter(!(Genus_species %in% c("Urocyon_cinereoargenteus", "Leopardus_geoffroyi")))) %>% as.data.frame() %>% select(Genus_species, .epred) %>% group_by(Genus_species) %>% summarise(mean = mean(.epred))
+
+dat2 %>% select(Genus_species, Loc_bin) %>% right_join(pre, by = "Genus_species") %>% mutate(rnd = round(mean)) %>% select(!mean) %>% mutate(Resp_final = if_else(Loc_bin == rnd, 1, 0)) %>% 
+  view()
+ # count(Resp_final)
+```
+
+
+# Plot
+
+```{r}
+plot(m17, N=3, ask=F)
+```
+
+
+```{r}
+plot(conditional_effects(m14, effects = "Hl"))
+```

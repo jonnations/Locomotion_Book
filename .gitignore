@@ -15,3 +15,5 @@
 *.Rds
 #pdf plots (png ok)
 *.pdf
+All_Predictions.csv
+Fossil_Predictions.csv
