@@ -11,6 +11,8 @@ A long-standing question of interest to 10 people on the planet, 3 of them being
 
 I'll work though this using our log transformed mass, log transformed humerus length, and our binary climb/no-climb locomotion categories. 
 
+findings: `emmeans` is great for understanding interactions. I found that there seems to be an interaction between mass and phenotype in that the effect of phenotype on climbing seems to be more pronounced in smaller-bodied samples -- at least in these toy examples that ingnore phylogeny. That means that the slope is greater at smaller body sizes. This is quite interesting, and I'm not sure I fully understand it. I think it has something to do with ***the magnitude of the values***. log(mass) should be on a linear scale, but 
+
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, tidybayes, patchwork)
 
@@ -33,29 +35,29 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
                              Loc_mode_Ordinal == "Ss" ~ 6,
                              TRUE ~ NA),
          Loc_Ord = as.ordered(Loc_Ord),
-         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
-                             Loc_mode_Bindary == "Tree" ~ 1,
+         Loc_bin = case_when(Loc_mode_Binary == "Ground" ~ 0,
+                             Loc_mode_Binary == "Tree" ~ 1,
                              TRUE ~ NA
                              ),
         # Loc_bin = as.factor(Loc_bin),
          Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
          log_Mass = log(Mass_grams)) %>% 
-    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Binary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
   relocate(log_Mass, .before = Skl) %>%
   
 #################
 #Calculate G means
 #################
-  drop_na(Hl , Ul , Tl , Fl , Hsw , Fsw , Fdw , Fsw , Sl , Sh , Hdw, Mcl, Ppl, log_Mass) %>% 
-  mutate(gm1 = (Hl * Fl)^(1/2),
-         gm2 = (Hl * Hsw * Fl * Fsw)^(1/4),
-         gm3 = (Hl * Ul * Tl * Fl)^(1/4),
-         gm4 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Tmw)^(1/7),
-         gm5 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw )^(1/11),
-         gm6 = (Hl * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw * Mcl * Ppl)^(1/13),
-         lg_sh_h = Hl / gm6,
-         lg_sh_h2 = Hl / Mass_grams
+  drop_na(Ul , Ul , Tl , Fl , Hsw , Fsw , Fdw , Fsw , Sl , Sh , Hdw, Mcl, Ppl, log_Mass) %>% 
+  mutate(gm1 = (Ul * Fl)^(1/2),
+         gm2 = (Ul * Hsw * Fl * Fsw)^(1/4),
+         gm3 = (Ul * Ul * Tl * Fl)^(1/4),
+         gm4 = (Ul * Ul * Tl * Fl * Hsw * Fsw * Tmw)^(1/7),
+         gm5 = (Ul * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw )^(1/11),
+         gm6 = (Ul * Ul * Tl * Fl * Hsw * Fsw * Fdw * Fsw * Sl * Sh * Hdw * Mcl * Ppl)^(1/13),
+         lg_sh_h = Ul / gm6,
+         lg_sh_h2 = Ul / Mass_grams
          ) %>% 
   mutate_at(vars(17:71, 78:79), log) %>% 
   mutate_at(vars(16:79), scale2)
@@ -149,15 +151,15 @@ ggplot(aes(x={{effect2}}, y = Probability)) +
 
 
 ```{r}
-conditions <- data.frame(log_Mass = c(-1.5, 0, 1.5))
+conditions <- data.frame(log_Mass = c(-2, 0, 2))
 conditional_effects(m1, 
-                          prob = 0.75, 
+                          prob = 0.99, 
                           conditions = conditions, 
                           effects= 'Ppl')[[1]] %>% 
   #extract conditional effects data frame
   as_tibble() %>% 
     mutate(log_Mass = factor(log_Mass, 
-                                    levels = c("-1.5", "0", "1.5"),
+                                    levels = c("-2", "0", "2"),
                                     labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
   #rename the objects in the conditional effects df
   rename(Probability = estimate__) %>%
@@ -168,7 +170,7 @@ ggplot(aes(x=Ppl, y = Probability)) +
   geom_line(size=0.4) +
   facet_wrap(~ log_Mass, 
              ncol = 3) +
-  labs(subtitle = "log_humerus_length") + 
+  labs(subtitle = "log_Ppl_length") + 
   theme_bw() +
   ylim(0, 1) +
   theme( #panel.grid.major = element_blank(), 
@@ -181,13 +183,13 @@ ggplot(aes(x=Ppl, y = Probability)) +
          ) -> p1
 
 conditional_effects(m2, 
-                          prob = 0.75, 
+                          prob = 0.99, 
                           conditions = conditions, 
                           effects= 'Ppl')[[1]] %>% 
   #extract conditional effects data frame
   as_tibble() %>% 
     mutate(log_Mass = factor(log_Mass, 
-                                    levels = c("-1.5", "0", "1.5"),
+                                    levels = c("-2", "0", "2"),
                                     labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
   #rename the objects in the conditional effects df
   rename(Probability = estimate__) %>%
@@ -198,7 +200,7 @@ ggplot(aes(x=Ppl, y = Probability)) +
   geom_line(size=0.4) +
   facet_wrap(~ log_Mass, 
              ncol = 3) +
-  labs(subtitle = "log_humerus_length") + 
+  labs(subtitle = "log_Ppl_length") + 
   theme_bw() +
   ylim(0, 1) +
   theme( #panel.grid.major = element_blank(), 
@@ -213,26 +215,268 @@ ggplot(aes(x=Ppl, y = Probability)) +
 p1 / p2
 ```
 
-#```{r}
+#### Make some models for emmeans practice
+
+```{r}
+m3 <- brm(Loc_bin ~ Ul* log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+m4 <- brm(Loc_bin ~ Ul * log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+m5 <- brm(Loc_bin ~ Tl * log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+
+m6 <- brm(Loc_bin ~ Tl * log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0, seed = 131)
+```
+
+
+
+#### emmeans
+
+```{r}
+library(emmeans)
+
+m2 %>% 
+  emtrends( pairwise ~ Ppl + Ppl:log_Mass,
+           var = "Ppl",
+          at = list(log_Mass = c(-2, 0, 2)),#,
+                   #Ppl = seq(-3, 3, length.out = 100)),
+           epred = TRUE)
+
+emmip(m2, log_Mass ~ Ppl, cov.reduce = range)
+```
+
+```{r}
+m2 %>% 
+  emtrends(~ Ppl + Ppl:log_Mass,
+           var = "Ppl",
+           at = list(log_Mass = c(-2, 0, 2),
+                     Ppl = seq(-3, 3, length.out = 100)),
+           epred = TRUE) %>% 
+  #gather_emmeans_draws(n = 10) %>% 
+  as_tibble() %>% 
+  mutate_at(3:5, ~round(., 3)) %>% 
+  arrange(log_Mass, desc(Ppl.trend))  %>% 
+  #these are the rows with the highest slope values for each mass class
+  slice(1, 101, 201)
+
+```
+
+Here's how to do it with no fussing around and manually extractiing values
+
+```{r}
+m4 %>% 
+  emtrends(~ Ul + Ul:log_Mass,
+           var = "Ul",
+           at = list(log_Mass = c(-2, 0, 2),
+                     Ul = seq(-3, 3, length.out = 100)),
+           epred = TRUE) %>% 
+  #gather_emmeans_draws(n = 10) %>% 
+  as_tibble() %>% 
+  mutate_at(3:5, ~round(., 3)) %>% 
+  arrange(log_Mass, desc(Ul.trend))  %>% 
+  #these are the rows with the highest slope values for each mass class
+  slice(1, 101, 201) %>% 
+  mutate_at(1:2, ~round(., 3)) %>% 
+  select(1:2) -> ttt
+
+m4 %>% 
+  emtrends(~ Ul + Ul:log_Mass,
+           var = "Ul",
+           at = ttt,
+           epred = TRUE) %>% 
+  gather_emmeans_draws() %>% 
+  as_tibble() %>% 
+  filter(Ul == ttt[[1,1]] & log_Mass == -2 | 
+           Ul == ttt[[2,1]] & log_Mass == 0 |
+           Ul == ttt[[3,1]] & log_Mass == 2) %>% 
+  ggplot(aes(x= .value, y = as_factor(log_Mass))) + 
+  stat_halfeye()
+
+dat %>% ggplot(aes(y = Ul, x = log_Mass, color = as.factor(Loc_bin))) + geom_point() + geom_smooth(method = lm)
+```
+
+#### differences
+```{r}
+m4 %>% 
+    emtrends(~ Ul + Ul:log_Mass,
+             var = "Ul",
+             at = ttt,
+             epred = TRUE) %>% 
+    gather_emmeans_draws() %>% 
+    as_tibble() %>% 
+    filter(Ul == ttt[[1,1]] & log_Mass == -2 | 
+               Ul == ttt[[2,1]] & log_Mass == 0 |
+               Ul == ttt[[3,1]] & log_Mass == 2)  %>%  pivot_wider(names_from = as.factor("log_Mass"), values_from = c(".value", "Ul")) %>% 
+  mutate(lowmid = `.value_-2` - .value_0,
+         lowhigh = `.value_-2` - `.value_2`,
+         midhigh = .value_0 - `.value_2`) %>% select(3, 10:12) %>% pivot_longer(!.draw, names_to = "measure", values_to = "val") %>% 
+  ggplot(aes(x = val, y = measure)) +  stat_halfeye()
+```
+
+
+```{r}
+m5.2 %>% 
+  emtrends(var = "Tl",
+           at = list(log_Mass = c(-1.5, 0, 1.5),
+                     Tl = seq(-3, 3, length.out = 100)),
+           epred = TRUE) %>% 
+  #gather_emmeans_draws(n = 10) %>% 
+  as_tibble() %>% 
+  mutate_at(3:5, ~round(., 3)) %>% 
+  arrange(log_Mass, desc(Tl.trend))  %>% 
+  #these are the rows with the highest slope values for each mass class
+  slice(1, 101, 201) %>% 
+  mutate_at(1:2, ~round(., 3)) %>% 
+  select(1:2) -> ttt
+
+m5.2 %>% 
+  emtrends(var = "Tl",
+           at = ttt,
+           epred = TRUE) %>% 
+  gather_emmeans_draws() %>% 
+  as_tibble() %>% 
+  filter(Tl == ttt[[1,1]] & log_Mass == -1.5 | 
+           Tl == ttt[[2,1]] & log_Mass == 0 |
+           Tl == ttt[[3,1]] & log_Mass == 1.5) %>% 
+  ggplot(aes(x= .value, y = as_factor(log_Mass))) + 
+  stat_halfeye()
+```
+
+```{r}
+
+
+m4 %>% 
+  emtrends(var = "Ul",
+           at = ttt,
+           epred = TRUE) %>% 
+  gather_emmeans_draws() %>% 
+  as_tibble() %>% 
+  filter(Ul == ttt[[1,1]] & log_Mass == -1.5 | 
+           Ul == ttt[[2,1]] & log_Mass == 0 |
+           Ul == ttt[[3,1]] & log_Mass == 1.5) %>% 
+  mutate(mass = rep(c("Low", "Med", "High"), each = 4000),
+         mass = as.factor(mass)) %>%
+  select(mass, .value) %>% 
+  pivot_wider(names_from = mass, values_from = .value) %>% unli
+```
+
+
+```{r}
+
+dd <- data.frame(log_Mass = c(-2, 0, 2),
+                 Ul = c(-1.3, 0.09, 2.21))
+
+m3 %>% 
+  emtrends(var = "Ul",
+           at = dd,
+           epred = TRUE) %>% 
+  gather_emmeans_draws() %>% 
+  as_tibble() %>% 
+  filter(Ul == -1.3 & log_Mass == -2 | 
+           Ul == 0.09 & log_Mass == 0 |
+           Ul == 2.21 & log_Mass == 2) %>% 
+  ggplot(aes(x= .value, y = as_factor(log_Mass))) + 
+  stat_halfeye()
+```
+
+```{r}
+m5 %>% 
+  emtrends(var = "Tl",
+           at = dd,
+           epred = TRUE) %>% 
+  gather_emmeans_draws() %>% 
+  as_tibble() %>% 
+  filter(Tl == -1.3 & log_Mass == -2 | 
+           Tl == 0.09 & log_Mass == 0 |
+           Tl == 2.21 & log_Mass == 2) %>% 
+  summarize(mean = mean(.value))
+  ggplot(aes(x= .value, y = as_factor(log_Mass))) + 
+  stat_halfeye(
+```
+
+
+
+
+
+This is so good!
+
+## Function
+
+works, but just gets max values. 
+Can I make this do a get_emmeans_draws?
+```{r}
+get_slopes <- function(mod, nm){
+
+  #df <- list()
+  df <- list(log_Mass = c(-2, 0, 2))
+  #df[[phen1]] <- c(-2, 0, 2)
+  df[[nm]] <- seq(-3, 3, length.out = 100)
+  
+{{mod}} %>% 
+  emtrends(
+           var = nm,
+           at = df,
+           epred = TRUE) %>% 
+ as_tibble() %>% 
+ mutate_at(3:5, ~round(., 3)) %>% 
+   arrange(.[2], desc(.[3])) %>% 
+ slice(1, 101, 201) %>% 
+  mutate_at(1, ~round(., 3))
+}
+
+get_slopes(mod = m2, nm = "Ppl")
+```
+function
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+nm <- names(list_b2)
+call
+pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
+  write_csv(here("Data", "Fossil_Predictions.csv")) %>% 
+  mutate(method = "Fossil",
+         substrate = NA)
+
+So, 
+nm <- names(list_int_b2)
+test <- map2(list_int_b2, nm, ~get_slopes(.x, .y))
+
+
+```{r}
+tt <- conditional_effects(m2, prob = 0.99, conditions = conditions, effects= 'Ppl')[[1]]
+
+tt %>% ggplot(aes(x = Ppl, y = estimate__, color = cond__)) + 
+  #stat_halfeye(.width = .5)
+  geom_line()
+```
+
+
+
+
+```{r}
 plot(conditional_effects(m2, 
                           prob = 0.75, 
                           conditions = conditions, 
-                          effects= 'Hl',
+                          effects= 'Ppl',
                          plot = F))[[1]]
 ```
 
-#```{r}
-plot(conditional_effects(m2))
-plot(conditional_effects(m1))
-#```
+```{r}
+plot(conditional_effects(m2), ask=F)
+plot(conditional_effects(m1), ask=F)
+```
 
-
-
-
-
-#```{r}
-int_plot(m2, 
-         "Hl", Hl,
-         "log_humerus_length")
-#```
 

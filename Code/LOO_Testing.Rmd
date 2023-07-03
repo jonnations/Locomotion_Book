@@ -15,7 +15,7 @@ This is unacceptable.
 ANd this is why: "If p_loo <𝑝 and the number of parameters 𝑝 is relatively large compared to the number of observations (e.g., 𝑝>𝑁/5), it is likely that the model is so flexible or the population prior so weak that it’s difficult to predict the left out observation (even for the true model). This happens, for example, in random effect models with **a few observations per random effect**, and **Gaussian processes and spatial models with short correlation lengths**."
 [*SOURCE*](https://mc-stan.org/loo/articles/online-only/faq.html#high_khat)
 
-Our data has both few observations per random effect (Genus_species) and very short correlation lengths (think very closely related taxa). THis is especially true with a MASSIVE tree, where species that diverged 2 mya are incredibly correlated when compared to a monotreme. 
+Our data has both few observations per random effect (Genus_species) and very short correlation lengths (think very closely related taxa). This is especially true with a MASSIVE tree, where species that diverged 2 mya are incredibly correlated when compared to a monotreme. 
 
 Dropping the 1|species term, then setting the beta priors a little looser and the sd priors a little higher greatly limits the high pareto-k values. It also generates more incorrect predicitons, but, in this Hl model, they are around 5% of species (so even fewer for the total dataset!!) 
 
@@ -71,14 +71,14 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
                              TRUE ~ NA),
          Loc_Ord2 = as.ordered(Loc_Ord2),
          Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
-         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
-                             Loc_mode_Bindary == "Tree" ~ 1,
+         Loc_bin = case_when(Loc_mode_Binary == "Ground" ~ 0,
+                             Loc_mode_Binary == "Tree" ~ 1,
                              TRUE ~ NA
                              ),
         # Loc_bin = as.factor(Loc_bin),
          Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
          log_Mass = log(Mass_grams)) %>% 
-    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Binary) %>% 
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
   relocate(Loc_Ord2, .after = Loc_Ord) %>%
   relocate(log_Mass, .before = Skl) %>% 
@@ -279,11 +279,20 @@ m17 <- brm(Loc_bin ~ Hl + log_Mass +  (1 | Genus_species) + (1|gr(Taxon_Upham_st
 
 
 ```{r}
-loo(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16)
+loo(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17)
 ```
 
 
 pretty good models: m7, m11, m12, m9 (19 >0.7), m13, m15
+
+no phy compare outputs
+```{r}
+m_nophy <- read_rds(here("Data","B_lm_mods_no_phy.Rds"))
+
+m_nophy$Hl
+```
+
+
 
 ## test preds
 
@@ -293,11 +302,12 @@ Most of the models we were using are horribly overfit. Predictions are at 100%, 
 This is unacceptable. 
 
 ```{r}
-pre <- epred_draws(m14, newdata = dat %>% filter(!(Genus_species %in% c("Urocyon_cinereoargenteus", "Leopardus_geoffroyi")))) %>% as.data.frame() %>% select(Genus_species, .epred) %>% group_by(Genus_species) %>% summarise(mean = mean(.epred))
+pre <- epred_draws(list_b2$Hl, newdata = dat %>% filter(!(Genus_species %in% c("Urocyon_cinereoargenteus", "Leopardus_geoffroyi")))) %>% as.data.frame() %>% select(Genus_species, .epred) %>% group_by(Genus_species) %>% summarise(mean = mean(.epred))
 
-dat2 %>% select(Genus_species, Loc_bin) %>% right_join(pre, by = "Genus_species") %>% mutate(rnd = round(mean)) %>% select(!mean) %>% mutate(Resp_final = if_else(Loc_bin == rnd, 1, 0)) %>% 
+dat %>% select(Genus_species, Loc_bin) %>% right_join(pre, by = "Genus_species") %>% mutate(rnd = round(mean)) %>% select(!mean) %>% mutate(Resp_final = if_else(Loc_bin == rnd, 1, 0)) %>% 
   view()
  # count(Resp_final)
+
 ```
 
 

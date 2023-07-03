@@ -1,9 +1,11 @@
 ---
-title: "Binary Classification"
+title: "Binary Interaction Classification"
 output: html_notebook
 ---
 
-Predicting binary climbing classifications (tree vs. ground) using postcranial measurements. Models will also incorperate intraspecific variation and phylogenetic variation.
+Copy of `Binary_Missing_Models.Rmd` but with the interaction term!
+
+Predicting binary climbing classifications (tree vs. ground) using postcranial measurements and interactions. Models will also incorperate intraspecific variation and phylogenetic variation.
 
 # Preparation  
 
@@ -28,7 +30,7 @@ source(here("Code","Name_Change.R"))
 ### Load data  
 All data loading and wrangling in `Code/Data_Load.Rmd`
 ```{r}
-dat <- read_csv(here("Data", "Extant_Master.csv"))
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% filter( Genus_species !=  'Leopardus_geoffroyi')
 
 #species in dataset
 spp_obs <- dat$Taxon_Upham_style %>% unique()
@@ -47,38 +49,7 @@ A <- ape::vcv.phylo(tr, corr = TRUE)
 ```
 
 ## Description of Missing Data
-
-*Linear measurements with complete data*
-log_Mass, Sl, Sh, Hl, Hsw, Hdw, Uol, Ul, Rl, Fl, Fsw, Fdw, Tl, Tmw
-
-Removing Sh from all analyses
-
-*indices with complete data:*
- SI, HRI, HEB, OLI, BI, IM, FRI, FEB, CI, TRI
- 
-```{r}
-var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
-```
-
-*All variables with <= 31% missing data:*
-MANUS2, Ipl, PES, Pppl, Mtl, MANUS, Ppl, Mcl, PRTI
-These variables will be included in the study, and missing values will be imputed.
-We added in a few more with between 30-50 missing data because they are good measurements:
-Tpw, Isl, Il, Pel, Hpw, HPI, Mcw, MRI, Ppw, PES2, CI
-```{r}
-var_missing <- c("MANUS2", "MANUS3", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl")
-```
-*All variables with > 31% missing data:*
-Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, *Cl*, Fbpw, Pipl, *PES2*, *Ppw*, *Mcw*, *MRI*, *Hpw*, *Pel*, *Il*, *Isl*, *Tpw*, Fbl, *HPI*, IRI, PR, Hdcw, DI, Tdw
-
-```{r}
-var_missing_complete <- c("MANUS3", "MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "Pdpw", "Dpw", "Pipw", "Pdpl", "Cal", "Anl", "Atw", "Csw", "Ccw", "Ctl", "Ctw", "Al", "Jl", "Ipw", "Dpl", "Pppw", "Skl", "Mtw", "Fbdw", "Fhd", "Fgh", "Fbmw", "Hhw", "Hhl", "HHRI", "HHW", "Cl", "Fbpw", "Pipl", "PES2", "Ppw", "Mcw", "MRI", "Hpw", "Pel", "Il", "Isl", "Tpw", "Fbl", "HPI", "IRI", "PR", "Hdcw", "DI", "Tdw")
-
-var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
-
-var_complete %>% write_rds(here("Data", "var_complete.Rds"))
-var_missing %>% write_rds(here("Data", "var_missing.Rds"))
-```
+Follows `Binary_Missing_Models.Rmd`
 
 
 
@@ -101,7 +72,7 @@ p1 = c(prior(normal(0, 1), class = Intercept),
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_bin ~ Sl * log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = bernoulli(),
           data = dat, refresh = 0, cores = 4,
@@ -115,7 +86,7 @@ list_b_lm <- vector(mode ="list")
 
 for(i in var_complete){
   list_b_lm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         formula=(paste0("Loc_bin ~", i, "*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = bernoulli(),
                          newdata=dat,
                          refresh = 0,
@@ -141,7 +112,7 @@ Prior must be called in the loop
 ```{r message = FALSE, warning=FALSE, results = 'hide'}
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
   imp_mod <- bf(paste0(i,"| mi() ~ log_Mass + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
@@ -170,10 +141,11 @@ for(i in var_missing){
                          ) 
 }
 
-list_b_lm %>% write_rds(here("Data","B_lm_mods_mis.Rds"))
-
+list_b_lm %>% write_rds(here("Data","B_lm_int_mods_mis.Rds"))
 
 ```
+
+
 
 # Fit Models
 
@@ -192,7 +164,7 @@ p1 = c(prior(normal(0, 1), class = Intercept),
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_bin ~ Sl + gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_bin ~ Sl * gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = bernoulli(),
           data = dat, refresh = 0, cores = 4,
@@ -206,7 +178,7 @@ list_b_gm <- vector(mode ="list")
 
 for(i in var_complete){
   list_b_gm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         formula=(paste0("Loc_bin ~", i, "*gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = bernoulli(),
                          newdata=dat,
                          refresh = 0,
@@ -232,7 +204,7 @@ Prior must be called in the loop
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
   imp_mod <- bf(paste0(i,"| mi() ~ gm + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
@@ -261,12 +233,8 @@ for(i in var_missing){
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_gm_mods_mis.Rds"))
+list_b_gm %>% write_rds(here("Data","B_gm_int_mods_mis.Rds"))
 ```
-
-
-
-
 
 
 

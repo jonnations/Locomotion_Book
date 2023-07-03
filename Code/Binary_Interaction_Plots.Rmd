@@ -1,0 +1,221 @@
+---
+title: "Binary Interaction Plotting"
+output: html_notebook
+---
+
+
+There are two parts: Probability plots and Forest Plots
+
+Packages and Data
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+# Models
+
+list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+list_b_gm <- read_rds(here("Data","B_gm_int_mods_mis.Rds"))
+```
+
+
+
+some colors
+```{r}
+pal = c('#66a61e', '#7570b3',  '#e6ab02', '#62361B')
+
+binpal = c('#66a61e','#5e1ea6')#5e1ea6
+
+cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
+```
+
+# Forest Interaction Effect Plots
+
+Here i'm focusing on the slope of the *interactions*
+
+## Extract Slopes  
+
+#### Helper Functions
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the 4th column, b_ or the interaction, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[4] %>% gather(var, val) #%>% mutate(val = inv_logit_scaled(val))
+# Same for missing
+cln2 <- function(df) as_draws_df(df)[18] %>% gather(var, val) #%>% mutate(val = inv_logit_scaled(val))
+```
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+lms <- map(list_b_lm[2:2], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_lm[24:44], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms <- lms %>% bind_rows(lms2)
+rm(lms2)
+```
+
+#### Log_mass Slope DF
+```{r message = FALSE, warning=FALSE}
+#list of slopes in order of means
+nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+m <- as.factor(nms$var)
+m <- fct_rev(m)
+m %>% saveRDS(here("Data", "Order_Names.Rds"))
+
+# New df to demonstrate which vars don't overlap 0 at 89%
+sigs_lm <- lms %>% group_by(var) %>% 
+  median_qi(val , .width = c(0.89)) %>% 
+  mutate(sigs = case_when(
+    .lower > 0 & .upper > 0 ~ "sig",
+    .lower < 0 & .upper < 0 ~ "sig",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+   mutate(dirs = case_when(
+    .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
+    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+  select(var, sigs, dirs)
+```
+
+List the variables that have strong non-zero slopes
+```{r}
+sigs_lm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
+```
+
+#### Geometric_mean Slope DF  
+
+```{r message = FALSE, warning=FALSE}
+
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+gms <- map(list_b_gm[2:23], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+gms2 <- map(list_b_gm[24:44], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+gms <- gms %>% bind_rows(gms2)
+rm(gms2)
+
+
+#list of slopes in order of means
+nms_gm <- gms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+# New df to demonstrate which vars don't overlap 0 at 89%
+sigs_gm <- gms %>% group_by(var) %>% 
+  median_qi(val , .width = c(0.89)) %>% 
+  mutate(sigs = case_when(
+    .lower > 0 & .upper > 0 ~ "sig",
+    .lower < 0 & .upper < 0 ~ "sig",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+ mutate(dirs = case_when(
+    .lower > 0 & .upper > 0 ~ "More Climbing = Larger Measurement",
+    .lower < 0 & .upper < 0 ~ "More Climbing = Shorter Measurement",
+    #max(var) < 0.5 ~ "sig",
+    TRUE ~ "nosig")) %>% 
+  select(var, sigs, dirs)
+```
+
+## Plot Slopes
+
+#### All LM Slopes
+```{r warning = FALSE}
+
+lms %>% right_join(sigs_lm, by = 'var') %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs.pdf"), height = 15)
+
+#lms %>% right_join(sigs_lm, by = 'var') %>% 
+#  filter(sigs == "sig") %>% 
+#  mutate(var = fct_relevel(var, nms$var)) %>% 
+#  ggplot(aes(x = val, y = var, color = sigs)) + 
+#  stat_pointinterval(.width = c(.66, .89)) +
+#  geom_vline(xintercept = 0.5, linetype = 3) + 
+#  scale_fill_manual(values = pal) +
+#  scale_color_manual(values = pal) +
+#  theme_bw()
+
+#ggsave(here("Plots","Ord2_sigs2.pdf"), height = 10)
+```
+
+#### All GM Slopes  
+
+```{r warning = FALSE}
+
+gms %>% right_join(sigs_gm, by = 'var') %>% 
+  mutate(var = fct_relevel(var, nms_gm$var)) %>% 
+  ggplot(aes(x = val, y = var, color = sigs)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  theme_bw()
+
+```
+
+
+Ok, so some large interactions!
+
+# Test Cond Effects Plots 
+
+```{r}
+
+conditions <- data.frame(log_Mass = c(-1.5, 0, 1.5))
+
+#effect = "MANUS2"
+xaxis   <- "Rl"   
+yaxis   <- "Probability"
+
+conditional_effects(list_b_lm$Rl, 
+                          prob = 0.99, 
+                          conditions = conditions, 
+                          effects= paste(xaxis))[[1]] %>% 
+  #extract conditional effects data frame
+  as_tibble() %>% 
+    mutate(log_Mass = factor(log_Mass, 
+                                    levels = c("-1.5", "0", "1.5"),
+                                    labels = c("Low Mass", "Mean Mass", "High Mass"))) %>% 
+  #rename the objects in the conditional effects df
+  rename(Probability = estimate__) %>%
+ggplot(aes(x = .data[[xaxis]], y = Probability)) +
+  geom_ribbon(aes(ymin = lower__, 
+                  ymax = upper__), 
+              alpha=0.2) +
+  geom_line(size=0.4) +
+  facet_wrap(~ log_Mass, 
+             ncol = 3) +
+  #labs(subtitle = "log_Ppl_length") + 
+  theme_bw() +
+  ylim(0, 1) +
+  theme( #panel.grid.major = element_blank(), 
+         #panel.grid.minor = element_blank(),
+         strip.background = element_blank(),
+         panel.border = element_rect(colour = "black", 
+                                     fill = NA,
+                                     size = rel(0.8)),
+         axis.line = element_line(colour = "NA")
+         )
+```
+

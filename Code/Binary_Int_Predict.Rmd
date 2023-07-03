@@ -1,5 +1,5 @@
 ---
-title: "Predicting Binary Climbing"
+title: "Predicting Binary Interaction Climbing"
 output: html_notebook
 ---
 
@@ -52,7 +52,7 @@ pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1e
 Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
 
 ```{r}
-list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
 #purrr keep_at is great!
 list_b2 <- list_b_lm %>% keep_at(pred_vars)
 
@@ -149,7 +149,7 @@ var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', '
 nm <- names(list_b2)
 
 pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
-  write_csv(here("Data", "Fossil_Predictions.csv")) %>% 
+  write_csv(here("Data", "Fossil_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
          substrate = NA)
 
@@ -176,7 +176,7 @@ pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var
   #THIS IS AVERAGING PER SPECIES
   group_by(substrate, method, var, Genus_species, draw) %>% 
   summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
-  write_csv(here("Data", "All_Predictions.csv"))
+  write_csv(here("Data", "All_Int_Predictions.csv"))
 ```
 ## Add means to the plots?
 Isn't really a good idea because there is uneven sampling across measurements
@@ -259,7 +259,7 @@ t3 <- pl5 / pl6 /pl7
 
 t3
 
-ggsave(here("Plots", "Predict_Fossil.pdf"), height = 8, width = 10)
+ggsave(here("Plots", "Predict_Int_Fossil.pdf"), height = 8, width = 10)
 
 ```
 
@@ -296,14 +296,14 @@ t2 <- pl3 / pl4 + plot_layout(guides = "collect")
 
 wrap_plots(t1, t2, ncol = 1)
 
-ggsave(here("Plots", "Predict_Extant.pdf"), height = 10, width = 10)
+ggsave(here("Plots", "Predict_Int_Extant.pdf"), height = 10, width = 10)
 
 ```
 
 ```{r}
 pl2 / pl4 + plot_layout(guides = "collect")
 
-ggsave(here("Plots", "Predict_Extant2.pdf"), height = 6, width = 10)
+ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
 ```
 
 
@@ -311,6 +311,7 @@ ggsave(here("Plots", "Predict_Extant2.pdf"), height = 6, width = 10)
 ```{r}
 wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
-ggsave(here("Plots", "Predict_All.pdf"), height = 16, width = 10)
+ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 10)
 ```
+
 

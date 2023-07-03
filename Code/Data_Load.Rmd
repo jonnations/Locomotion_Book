@@ -1,6 +1,5 @@
 ---
 title: "Data_Processing"
-output: html_notebook
 ---
 
 # Data Processing
@@ -75,6 +74,7 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
          MRI = Mcw / Mcl,          # Metacarpal Robustness
          MANUS = Ppl / Mcl,        # MANUS index
          MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         MANUS3 = Ipl / Ppl,       # Ratio of int. phalanx to prox. phalanx - Luo's fave
          IRI = Fgh / Fl,           # Gluteal Index
          FRI = Fsw / Fl,           # Femoral Robustness
          FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
@@ -91,9 +91,9 @@ dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyz
   drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
   mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
   relocate(gm, .before = log_Mass) %>% 
-  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(Skl:Pdpw), log) %>% 
   mutate(Fos = FALSE) %>% 
-  select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source"))
+  select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source")) 
 
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 
@@ -117,7 +117,7 @@ fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8Hfhc
   relocate(Loc_bin, .after = Loc_mode_Binary) %>%
   relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
   relocate(Loc_Ord2, .after = Loc_Ord) %>%
-  relocate(log_Mass, .before = Skl) %>%
+  relocate(log_Mass, .before = Skl) %>% 
   mutate(gm = NA) %>%
   relocate(gm, .before = log_Mass) %>% 
 #################
@@ -137,6 +137,7 @@ fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8Hfhc
          MRI = Mcw / Mcl,          # Metacarpal Robustness
          MANUS = Ppl / Mcl,        # MANUS index
          MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         MANUS3 = Ipl / Ppl,       # Ratio of int. phalanx to prox. phalanx - Luo's fave
          IRI = Fgh / Fl,           # Gluteal Index
          FRI = Fsw / Fl,           # Femoral Robustness
          FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
@@ -149,7 +150,7 @@ fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8Hfhc
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
          ) %>% 
-  mutate_at(vars(14:68), log) %>% 
+  mutate_at(vars(Skl:Pdpw), log) %>% 
   mutate(Fos = TRUE) %>% 
   select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source"))
 ```
@@ -159,17 +160,10 @@ fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8Hfhc
 
 ```{r}
 dat2 <- bind_rows(dat, fdat) %>% 
-  mutate_at(vars(14:92), scale2)
+  mutate_at(vars(gm:PES2), scale2)
 
 dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master.csv"))
 
 dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master.csv"))
 ```
-
-
-rm(dat2)
-
-fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
-
-pred_vars <- fdat_cln[c(13:79)]
 

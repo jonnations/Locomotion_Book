@@ -61,7 +61,7 @@ cln2 <- function(df) as_draws_df(df)[17] %>% gather(var, val) %>% mutate(val = i
 lms <- map(list_b_lm[2:23], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
-lms2 <- map(list_b_lm[24:43], cln2) %>% 
+lms2 <- map(list_b_lm[24:44], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
 
 lms <- lms %>% bind_rows(lms2)
@@ -105,7 +105,7 @@ sigs_lm %>% filter(sigs == "sig") %>% select(var) %>% as.list(var)
 gms <- map(list_b_gm[2:23], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
-gms2 <- map(list_b_gm[24:43], cln2) %>% 
+gms2 <- map(list_b_gm[24:44], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
 
 gms <- gms %>% bind_rows(gms2)

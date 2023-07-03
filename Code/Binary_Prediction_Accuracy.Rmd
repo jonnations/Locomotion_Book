@@ -1,0 +1,252 @@
+---
+title: "Prediction Accuracy"
+output: html_notebook
+---
+
+Testing the prediction accuracy
+
+When using the phylogeny in the predicitons, they are quite acurate. When NOT using the phylogeny, they are not as good for the extant species. Fossil species will always have to be predicted without the phylogeny. But how do we make a statement about what to trust in this scenario?
+
+Here, I want to check the extant predictions using the full models and the models without the group-level effects. If a particular measurement, without phylo, is pretty accurate for the extant species, then we can have more confience in the prediction for the fossil taxa. 
+
+I am going to use the accuracy measurements method from the Carnivoran paper.
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, furrr)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% filter(Genus_species != "Urocyon_cinereoargenteus") %>% 
+  filter(Genus_species != "Leopardus_geoffroyi")
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+#variables to do fossil predictions with
+pred_vars <- fdat_cln[c(9:84)]
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+```
+
+### Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+#purrr keep_at is great!
+list_b2 <- list_b_lm %>% keep_at(pred_vars)
+
+names(list_b2)
+
+rm(list_b_lm)
+
+list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+#purrr keep_at is great!
+list_b2i <- list_b_lm %>% keep_at(pred_vars)
+
+names(list_b2i)
+
+rm(list_b_lm)
+```
+Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
+# Predictions  
+
+## Fossil Functions
+```{r}
+colz <- c("Genus_species", "log_Mass", names(list_b2), "Specimen_Num")
+
+fd <- fdat %>% select(colz)
+
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+
+```
+
+# Big accuracy function
+Should work with missing and non-missing models
+
+great, this works perfectly.
+
+
+
+- update, this generates the accuracy counts perfectly. I'm interested in variation, and specific species-level predictions.
+It also takes forever.
+BUT, tidybayes and epred doesn't get predictions for species with missing measurements. And it seems to do a single prediction per species rather than one per sample??
+```{r}
+#WITH PHYLO
+bin_pred_phy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species
+        ) #%>% 
+  #summarise(accuracy_phy = round((sum(dif == 0)/427) * 100, digits = 1))
+  return(d2)
+}
+
+
+bin_pred_phy_fn <- function(df){
+  map(df, ~bin_pred_phy(.x)) %>% bind_rows()
+}
+
+
+## NO PHYLO
+bin_pred_nophy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = NA, resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_nophy_fn <- function(df){
+  map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
+}
+
+
+```
+
+
+```{r}
+df <- as.data.frame(names(list_b2)) 
+colnames(df) <- "var"
+
+```
+
+```{r}
+pred1 <- map(1, ~bin_pred_phy_fn(list_b2)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(df$var, each = 427),
+         method = 'phy')
+
+pred2 <- map(1, ~bin_pred_nophy_fn(list_b2)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(df$var, each = 427),
+         method = 'no_phy')
+
+pred3 <- map(1, ~bin_pred_phy_fn(list_b2i)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(df$var, each = 427),
+         method = 'phy_int')
+
+pred4 <- map(1, ~bin_pred_nophy_fn(list_b2i)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(df$var, each = 427),
+         method = 'no_phy_int')
+
+preds <- bind_rows(pred1, pred2, pred3, pred4) %>% write_csv(here("Data", "extant_predictions.csv"))
+```
+
+
+## Calculate accuracy
+
+Best, in order
+```{r}
+accuracy <- preds %>% 
+  group_by(method, var) %>% 
+  summarise(accuracy = round((sum(dif == 0)/427) * 100, digits = 1)) %>% 
+  select(var, accuracy, method) %>% 
+  filter(#accuracy > 70,
+         method %in% c('no_phy', 'no_phy_int')
+         ) %>% 
+  arrange(desc(accuracy)) 
+
+view(accuracy)
+
+```
+Make ordered list of measurements for prediction plots
+
+```{r}
+
+```
+
+
+
+
+Species-level Accuracy
+
+Where are things going wrong, and does it happen consistently?
+Yes
+```{r}
+preds %>% 
+  group_by(method, species, var) %>% 
+  filter(dif == 1) %>% 
+  count(var) %>% view()
+
+```
+
+Species-means. Are these predictions better?
+
+```{r}
+pred_mean <- preds %>% 
+  group_by(species, method, var, actual) %>% summarise(mean = mean(pred)) %>% 
+  mutate(pred_round = round(mean, digits = 0),
+         dif = abs(pred_round - actual))
+pred_mean
+```
+
+Get the worst and best prediction species for these top predictors
+PES2, MANUS, PES, Ppl, HPI, Hl, Ipl, Rl, Ul, OLI
+```{r}
+pred_mean %>% 
+  ungroup() %>% 
+  group_by(method, species, actual) %>% 
+  filter(dif == 1,
+         var %in% c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl"),
+         method %in% c('no_phy', 'no_phy_int')) %>% 
+  count(dif) %>% 
+  arrange(method,actual, desc(n),species) %>% 
+  view()
+
+```
