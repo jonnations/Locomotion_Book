@@ -20,6 +20,7 @@ nm_change = function(df){
                        var == "PRTI"  ~ "Palm Robustness Index",
                        var == "MANUS" ~ "Manus Proportion Index Proximal",
                        var == "MANUS2"  ~ "Manus Proportion Index Intermediate",
+                       var == "MANUS3"  ~ "Manus Phalanges Idex",
                        var == "IRI" ~ "Illium Robustness Index",
                        var == "FRI" ~ "Femoral Robustness Index",
                        var == "FEB" ~ "Femoral Epicondyle Index",
