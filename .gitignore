@@ -17,3 +17,5 @@
 *.pdf
 All_Predictions.csv
 Fossil_Predictions.csv
+All_Int_Predictions.csv
+Fossil_Int_Predictions.csv
