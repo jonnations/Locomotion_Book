@@ -186,6 +186,7 @@ pred4 <- map(1, ~bin_pred_nophy_fn(list_b2i)) %>%
          method = 'no_phy_int')
 
 preds <- bind_rows(pred1, pred2, pred3, pred4) %>% write_csv(here("Data", "extant_predictions.csv"))
+preds <- read_csv(here("Data", "extant_predictions.csv"))
 ```
 
 
@@ -202,29 +203,14 @@ accuracy <- preds %>%
          ) %>% 
   arrange(desc(accuracy)) 
 
-view(accuracy)
 
+accuracy %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
 ```
-Make ordered list of measurements for prediction plots
-
-```{r}
-
-```
-
-
-
 
 Species-level Accuracy
 
-Where are things going wrong, and does it happen consistently?
-Yes
-```{r}
-preds %>% 
-  group_by(method, species, var) %>% 
-  filter(dif == 1) %>% 
-  count(var) %>% view()
-
-```
 
 Species-means. Are these predictions better?
 
@@ -236,6 +222,7 @@ pred_mean <- preds %>%
 pred_mean
 ```
 
+### How bad is each species??
 Get the worst and best prediction species for these top predictors
 PES2, MANUS, PES, Ppl, HPI, Hl, Ipl, Rl, Ul, OLI
 ```{r}

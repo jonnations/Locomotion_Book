@@ -1,0 +1,269 @@
+---
+title: "Mass_Compare"
+#output: html_notebook
+---
+
+# Comparing mass correction methods 
+
+Testing for differences between log_mass and geometric_mean corrections
+Looking at differences in:
+  - LOO
+  - Bayes r^2
+  - Slope/effect size
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+nms <- read_rds(here("Data", "Order_Names.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+# The measurements with decent accuracy
+keys <- c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', 'Fl')
+
+```
+
+
+## Load Data  
+
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv"))
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+#variables to do fossil predictions with
+pred_vars <- fdat_cln[c(9:84)]
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+list_b_gm <- read_rds(here("Data","B_gm_int_mods_mis.Rds"))
+#purrr keep_at is great!
+mlm <- list_b_lm %>% keep_at(pred_vars)
+mgm <- list_b_gm %>% keep_at(pred_vars)
+```
+
+
+## loo 
+
+'PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl")
+```{r warning = FALSE}
+PES2 <- loo(mlm$PES2, mgm$PES2, resp = 'Locbin')
+PES2$diffs
+manus <- loo(mlm$MANUS, mgm$MANUS, resp = 'Locbin')
+manus$diffs
+PES <- loo(mlm$PES, mgm$PES, resp = 'Locbin')
+PES$diffs
+Ppl <- loo(mlm$Ppl, mgm$Ppl, resp = 'Locbin')
+Ppl$diffs
+manus2 <- loo(mlm$MANUS2, mgm$MANUS2, resp = 'Locbin')
+manus2$diffs
+HPI <- loo(mlm$HPI, mgm$HPI, resp = 'Locbin')
+HPI$diffs
+Hl <- loo(mlm$Hl, mgm$Hl, resp = 'Locbin')
+Hl$diffs
+Ipl <- loo(mlm$Ipl, mgm$Ipl, resp = 'Locbin')
+Ipl$diffs
+Rl <- loo(mlm$Rl, mgm$Rl, resp = 'Locbin')
+Rl$diffs
+Ul <- loo(mlm$Ul, mgm$Ul, resp = 'Locbin')
+Ul$diffs
+OLI <- loo(mlm$OLI, mgm$OLI, resp = 'Locbin')
+OLI$diffs
+Fl <- loo(mlm$Fl, mgm$Fl, resp = 'Locbin')
+Fl$diffs
+```
+
+### Loo Results
+Lm Performs a little better.
+
+lm higher no overlap: MANUS(0.8), Ppl(0.1), MANUS2(0.8), Ipl(0.7), Rl(0.7),  
+gm higher no overlap: PES2(0.1), HPI(0.1), Hl(2.5)
+lm higher overlap: Ul, Fl
+gm higher overlap: OLI, 
+no diff(<0.2): PES, 
+
+## Bayes r^2
+```{r}
+cat('PES2')
+bayes_R2(mlm$PES2, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$PES2, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('MANUS')
+bayes_R2(mlm$MANUS, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$MANUS, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('PES')
+bayes_R2(mlm$PES, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$PES, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Ppl')
+bayes_R2(mlm$Ppl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Ppl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('MANUS2')
+bayes_R2(mlm$MANUS2, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$MANUS2, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('HPI')
+bayes_R2(mlm$HPI, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$HPI, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Hl')
+bayes_R2(mlm$Hl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Hl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Ipl')
+bayes_R2(mlm$Ipl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Ipl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Rl')
+bayes_R2(mlm$Rl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Rl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Ul')
+bayes_R2(mlm$Ul, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Ul, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('OLI')
+bayes_R2(mlm$OLI, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$OLI, resp = 'Locbin')[[1]] %>% round(digits = 2)
+
+cat('Fl')
+bayes_R2(mlm$Fl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+bayes_R2(mgm$Fl, resp = 'Locbin')[[1]] %>% round(digits = 2)
+```
+### Bayes r^2 results
+lm higher: Rl(0.1), Ul(0.1), Ppl(0.1), Hl(0.1), Ipl(0.1), 
+gm higher: PES2(0.1), HPI(0.1), OLI(0.1), 
+no diff: MANUS, PES, MANUS2, 
+
+
+## Slopes
+
+#### Extract Slopes
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[2] %>% gather(var, val) #%>% mutate(val = inv_logit_scaled(val))
+# Same for missing
+cln2 <- function(df) as_draws_df(df)[17] %>% gather(var, val) #%>% mutate(val = inv_logit_scaled(val))
+
+lms <- map(list_b_lm[2:23], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_lm[24:44], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms <- lms %>% bind_rows(lms2) %>% mutate(type = 'lm')
+rm(lms2)
+
+gms <- map(list_b_gm[2:23], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+gms2 <- map(list_b_gm[24:44], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+gms <- gms %>% bind_rows(gms2) %>% mutate(type = 'gm')
+rm(gms2)
+
+#list of slopes in order of lm means
+nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
+
+m <- as.factor(nms$var)
+m <- fct_rev(m)
+
+
+# Bind Gm and Lm slopes:
+slps <- bind_rows(lms, gms)
+```
+
+#### Vis slopes
+
+```{r}
+slps %>% 
+  mutate(draw = rep(seq(1:4000), times = 86)) %>% 
+         pivot_wider(names_from = type, values_from = val) %>% 
+  mutate(difs = lm - gm) %>% 
+  pivot_longer(!c(var,draw), names_to = "type", values_to = "val") %>% 
+  select(!draw) %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  filter(type != "difs") %>% 
+  ggplot(aes(x = val, y = var, color = type)) + 
+  stat_pointinterval(.width = c(.66, .89), position = position_dodge(width = -.6)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  #scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  ggtitle("Effect sizes of all measurements conditioned on log(Mass)\n(lm) and geometric mean (gm). The differences between effect sizes are\nnot robust among the strongest predictors, but are more substantial for\nthe less accurate predictors, with geometric mean typically having a\nlower effect size.") +
+  theme_bw()
+```
+
+#### Vis key slopes
+
+```{r}
+slps %>% 
+  mutate(draw = rep(seq(1:4000), times = 86)) %>% 
+         pivot_wider(names_from = type, values_from = val) %>% 
+  mutate(difs = lm - gm) %>% 
+  pivot_longer(!c(var,draw), names_to = "type", values_to = "val") %>% 
+  select(!draw) %>% 
+  mutate(var = fct_relevel(var, nms$var)) %>% 
+  filter(type != "difs",
+         var %in% keys) %>% 
+  ggplot(aes(x = val, y = var, color = type)) + 
+  stat_pointinterval(.width = c(.66, .89), position = position_dodge(width = -.6)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  #scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal) +
+  ggtitle("Effect sizes of key measurements conditioned on log(Mass)\n(lm) and geometric mean (gm). None of the differences are robust,\nmeaning that conditioning on body size using either method produces\nsimilar results.") +
+  theme_bw()
+```
+
+
+#### calculate diffs
+
+```{r}
+slps %>% 
+  mutate(draw = rep(seq(1:4000), times = 86)) %>% 
+         pivot_wider(names_from = type, values_from = val) %>% 
+  mutate(difs = lm - gm) %>% 
+  pivot_longer(!c(var,draw), names_to = "type", values_to = "val") %>% 
+  select(!draw) %>% 
+  filter(type == "difs") %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  theme_bw()
+```
+
+#### calculate diffs key measurements
+
+```{r}
+slps %>% 
+  mutate(draw = rep(seq(1:4000), times = 86)) %>% 
+         pivot_wider(names_from = type, values_from = val) %>% 
+  mutate(difs = lm - gm) %>% 
+  pivot_longer(!c(var,draw), names_to = "type", values_to = "val") %>% 
+  select(!draw) %>% 
+  filter(var %in% keys) %>% 
+  #mutate(var = fct_relevel(var, nms$var)) %>% 
+  filter(type == "difs") %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  #scale_fill_manual(values = pal) +
+  #scale_color_manual(values = pal) +
+  theme_bw()
+```

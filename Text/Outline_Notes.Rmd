@@ -5,6 +5,27 @@ output:
     toc: true
     toc_depth: 6
 ---
+
+Ready to roll: 4 July 2023
+
+Questions 
+  - ***How to correct for mass?***
+    - script = `Mass_Correction_Compare.Rmd`
+    - Compare LM to GM (which models? all?)
+      - use effect size, and ?bayes_r2? Loo?
+  
+  - ***What are the Indices Doing?***
+    - How are indices correcting or not correcting for mass?
+    - script = `Mass_Correction_Compare.Rmd`
+
+
+
+
+
+
+
+
+
 # Notes:
 How much of the locomotor inference is driven by extremes? 
 
