@@ -1,13 +1,7 @@
 ---
-title: "Binary Interaction Classification"
+title: "Ordinal Classification"
 output: html_notebook
 ---
-
-Copy of `Binary_Missing_Models.Rmd` but with the interaction term!
-
-Predicting binary climbing classifications (tree vs. ground) using postcranial measurements and interactions. Models will also incorperate intraspecific variation and phylogenetic variation.
-
-# Preparation  
 
 ### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
@@ -31,12 +25,15 @@ source(here("Code","Name_Change.R"))
 All data loading and wrangling in `Code/Data_Load.Rmd`
 ```{r}
 dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
-  filter(Genus_species !=  c('Leopardus_geoffroyi', 
-                             'Urocyon_cinereoargenteus')) %>% 
+  drop_na(Loc_Ord2) %>% 
   mutate(Family = case_when(
     Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
     Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
-    TRUE ~ Family))
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+
 #species in dataset
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 
@@ -62,71 +59,78 @@ var_missing <- read_rds(here("Data", "var_missing.Rds"))
 ```
 
 
-The percentages are stored in the df `Missing_Data_Percents.csv`
 
-# Fit Models
+#### Get Prior
 
-## Log(Mass) Complete  
-
-#### Prior  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-p1 = c(prior(normal(0, 5), class = Intercept),
-                prior(normal(0, 2), class = b),
-                prior(normal(0, 0.3), class = sd))
+p1 <- get_prior(Loc_Ord2 ~ Sl * log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+  data2 = list(A = A),
+           family = cumulative(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 2)",
+        class == "sd" ~ "normal(0, 0.3)",
+        class == "Intercept" ~ "normal(0, 0.5)",
+        TRUE ~ prior
+      )
+    )
 ```
 
-#### Prelim model  
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_bin ~ Uol * log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_Ord2 ~ Sl * log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
-          family = bernoulli(),
+          family = cumulative(),
           data = dat, refresh = 0, cores = 4,
           prior = p1)
 ```
 
 
-#### Run Loop
+
+
+```{r}
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#7570b3')
+plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+```
+
+## Log Mass Loop
+
 ```{r  message = FALSE, warning=FALSE, results = 'hide'}
 
-list_b_lm <- vector(mode ="list")
+list_o_lm <- vector(mode ="list")
 
 for(i in var_complete){
-  list_b_lm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
-                         family = bernoulli(),
+  list_o_lm[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord2 ~", i, "*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
                          newdata=dat,
                          refresh = 0,
-                         cores = 2,
+                         cores = 4,
                          data2 = list(A = A),
-                         prior = p1,
-                         seed = 145
+                         prior = p1
                          ) 
 }
 
 ```
 
+#### Log Mass Missing Loop
 
-## Missing log(Mass)
+```{r  message = FALSE, warning=FALSE, results = 'hide'}
 
-Update cannot be used with multivatiate models
-
-Prior must be called in the loop
-
-
-#### Run Loop
-
-```{r message = FALSE, warning=FALSE, results = 'hide'}
+#var1 <- c("PES2")
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  ord_mod <-  bf(paste0("Loc_Ord2 ~ mi(", i, ")*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + cumulative()
   imp_mod <- bf(paste0(i,"| mi() ~ log_Mass + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
        (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
-  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  m_form <- ord_mod + imp_mod + set_rescor(FALSE)
   
   pri <- get_prior(m_form,
   data2 = list(A = A),
@@ -135,90 +139,56 @@ for(i in var_missing){
     prior = case_when(
       class == "b"  ~ "normal(0, 2)",
       class == "sd" ~ "normal(0, 0.3)",
-      class == "Intercept" ~ "normal(0, 5)",
+      class == "Intercept" ~ "normal(0, 0.5)",
       class == "sigma" ~ "normal(0, 0.5)",
       TRUE ~ prior
       ))
-
-  list_b_lm[[i]]<- brm(m_form,
+  
+    list_o_lm[[i]]<- brm(m_form,
                          data=dat,
                          refresh = 0,
-                         cores = 2,
+                         cores = 4,
                          data2 = list(A = A),
                          prior = pri,
                          seed = 145
                          ) 
 }
 
-list_b_lm %>% write_rds(here("Data","B_lm_int_mods_mis.Rds"))
-
+list_o_lm %>% write_rds(here("Data","O_lm_int_mods_mis.Rds"))
 ```
 
 
+## Geometric Mean Loop
 
-# Fit Models
+```{r  message = FALSE, warning=FALSE, results = 'hide'}
 
-## Geometric Mean Complete  
-
-#### Prior 
-same prior as above
-```{r message = FALSE, warning=FALSE, include = FALSE}
-
-p1 = c(prior(normal(0, 5), class = Intercept),
-                prior(normal(0, 2), class = b),
-                prior(normal(0, 0.3), class = sd))
-```
-
-#### Prelim model  
-
-```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
-#initial fit
-mm <- brm(Loc_bin ~ Sl * log_gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
-          data2 = list(A = A),
-          family = bernoulli(),
-          data = dat, refresh = 0, cores = 4,
-          prior = p1)
-```
-
-#### Run Loop
-```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
-
-list_b_gm <- vector(mode ="list")
+list_o_gm <- vector(mode ="list")
 
 for(i in var_complete){
-  list_b_gm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
-                         family = bernoulli(),
+  list_o_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord2 ~", i, "*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
                          newdata=dat,
                          refresh = 0,
-                         cores = 2,
+                         cores = 4,
                          data2 = list(A = A),
-                         prior = p1,
-                         seed = 145
+                         prior = p1
                          ) 
 }
 
 ```
 
+#### Geo Mean Mass Missing Loop
 
-## Missing GM
-
-Update cannot be used with multivariate models
-
-Prior must be called in the loop
-
-
-
-#### Run Loop
-```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+```{r  message = FALSE, warning=FALSE, results = 'hide'}
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  ord_mod <-  bf(paste0("Loc_Ord2 ~ mi(", i, ")*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + cumulative()
   imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
        (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
-  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  m_form <- ord_mod + imp_mod + set_rescor(FALSE)
   
   pri <- get_prior(m_form,
   data2 = list(A = A),
@@ -227,21 +197,21 @@ for(i in var_missing){
     prior = case_when(
       class == "b"  ~ "normal(0, 2)",
       class == "sd" ~ "normal(0, 0.3)",
-      class == "Intercept" ~ "normal(0, 5)",
+      class == "Intercept" ~ "normal(0, 0.5)",
       class == "sigma" ~ "normal(0, 0.5)",
       TRUE ~ prior
       ))
-
-  list_b_gm[[i]]<- brm(m_form,
+  
+    list_o_gm[[i]]<- brm(m_form,
                          data=dat,
                          refresh = 0,
-                         cores = 2,
+                         cores = 4,
                          data2 = list(A = A),
                          prior = pri,
                          seed = 145
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_gm_int_mods_mis.Rds"))
+list_o_gm %>% write_rds(here("Data","O_gm_int_mods_mis.Rds"))
 ```
 

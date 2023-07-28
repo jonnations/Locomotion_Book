@@ -324,9 +324,14 @@ ggsave(here("Plots/Binary_Modeling_Effects.pdf"), height = 9, width = 14)
 ggsave(here("Plots","Binary_Modeling_Effects.png"), height = 9, width = 14)
 ```
 
-#Prob Faceting  
 
-## LM
+
+
+# Interactions 
+
+## Prob Faceting  
+
+### LM
 
 ```{r}
 sigs <- sigs_lm %>% filter(sigs == "sig") %>% select(var)
@@ -419,7 +424,7 @@ ggsave(here("Plots","Bin_Plot.pdf"), height = 10, width = 10)
 ```
 
 
-## GM
+### GM
 
 ```{r}
 sigs <- sigs_gm %>% filter(sigs == "sig") %>% select(var)

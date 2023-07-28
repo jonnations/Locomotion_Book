@@ -1,0 +1,251 @@
+---
+title: "Ordinal Accuracy"
+output: html_notebook
+---
+
+Calculating Accuracy in the Ordinal models.
+
+Largely taken from carnivoran accuracy calculations script.
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, furrr)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  drop_na(Loc_Ord2) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+pred_vars <- dat %>% select(Sl:lsCl) %>% colnames()
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+```
+
+### Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+
+list_o_lm <- read_rds(here("Data","O_lm_int_mods_mis.Rds"))
+#purrr keep_at is great!
+list_o2i <- list_o_lm %>% keep_at(pred_vars)
+
+names(list_o2i)
+
+rm(list_o_lm)
+
+
+
+list_o_gm <- read_rds(here("Data","O_gm_int_mods_mis.Rds"))
+#purrr keep_at is great!
+list_o2gi <- list_o_gm %>% keep_at(pred_vars)
+
+names(list_o2gi)
+
+rm(list_o_gm)
+```
+
+
+
+# Functions
+```{r}
+
+model <- list_o2gi$MANUS
+ord_pred <- function(model){
+set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'LocOrd2')
+  d2 <- as.data.frame(d) %>% 
+    mutate(actual = as.factor({{model}}[[2]][[1]]),
+           actual= case_when(actual == "A"  ~ 1,
+                             actual == "Sc" ~ 2,
+                             actual == "T"  ~ 3,
+                             actual == "B" ~ 4,
+                             TRUE ~ NA),
+           pred   = colnames(d)[max.col(d,ties.method="first")], 
+           pred   = str_remove(pred,"P\\(Y = "), 
+           pred   = str_remove(pred,"\\)"),
+           pred= case_when(pred == "A"  ~ 1,
+                             pred == "Sc" ~ 2,
+                             pred == "T"  ~ 3,
+                             pred == "B" ~ 4,
+                             TRUE ~ NA)) %>% 
+    as_tibble()  %>% 
+    mutate(actual_n = as.numeric(as.character(actual)),
+           pred_n = as.numeric(as.character(pred)),
+           dif = abs(actual_n - pred_n)) %>%
+    select(actual, pred, dif) %>%
+    mutate(var = case_when(
+      # lm no missing
+      colnames(model[[2]][3]) == "log_Mass" ~  colnames(model[[2]][2]),
+      # gm no missing
+      colnames(model[[2]][3]) == "gm" ~ colnames(model[[2]][2]),
+      # lm missing
+      colnames(model[[2]][2]) == "gm" ~ colnames(model[[2]][5]),
+      # gm missing
+      TRUE ~ colnames({{model}}[[2]][5])),
+      species = model[[2]]$Genus_species)
+}
+  
+ord_pred_phy <- function(df){
+  map(df, ~ord_pred(.x)) %>% bind_rows()
+}
+
+ord_pred2 <- function(model){
+set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'LocOrd2',
+                re_formula = NA,)
+  d2 <- as.data.frame(d) %>% 
+    mutate(actual = as.factor({{model}}[[2]][[1]]),
+           actual= case_when(actual == "A"  ~ 1,
+                             actual == "Sc" ~ 2,
+                             actual == "T"  ~ 3,
+                             actual == "B" ~ 4,
+                             TRUE ~ NA),
+           pred   = colnames(d)[max.col(d,ties.method="first")], 
+           pred   = str_remove(pred,"P\\(Y = "), 
+           pred   = str_remove(pred,"\\)"),
+           pred= case_when(pred == "A"  ~ 1,
+                             pred == "Sc" ~ 2,
+                             pred == "T"  ~ 3,
+                             pred == "B" ~ 4,
+                             TRUE ~ NA)) %>% 
+    as_tibble()  %>% 
+    mutate(actual_n = as.numeric(as.character(actual)),
+           pred_n = as.numeric(as.character(pred)),
+           dif = abs(actual_n - pred_n)) %>%
+    select(actual, pred, dif) %>% 
+    mutate(var = case_when(
+      # lm no missing
+      colnames(model[[2]][3]) == "log_Mass" ~  colnames(model[[2]][2]),
+      # gm no missing
+      colnames(model[[2]][3]) == "gm" ~ colnames(model[[2]][2]),
+      # lm missing
+      colnames(model[[2]][2]) == "gm" ~ colnames(model[[2]][5]),
+      # gm missing
+      TRUE ~ colnames({{model}}[[2]][5])),
+      species = model[[2]]$Genus_species)
+}
+  
+ord_pred_nophy <- function(df){
+  map(df, ~ord_pred2(.x)) %>% bind_rows()
+}
+```
+
+
+
+
+
+```{r}
+pred1 <- map(1, ~ord_pred_phy(list_o2i)) %>% 
+  bind_rows() %>% 
+  mutate(method = 'phy_int',
+         mass = 'log_mass')
+
+pred2 <- map(1, ~ord_pred_nophy(list_o2i)) %>% 
+  bind_rows() %>% 
+  mutate(method = 'no_phy_int',
+         mass = 'log_mass')
+
+pred3 <- map(1, ~ord_pred_phy(list_o2gi)) %>% 
+  bind_rows() %>% 
+  mutate(method = 'phy_int',
+         mass = 'geo_mean')
+
+pred4 <- map(1, ~ord_pred_nophy(list_o2gi)) %>% 
+  bind_rows() %>% 
+  mutate(method = 'no_phy_int',
+         mass = 'geo_mean')
+
+
+preds <- bind_rows(pred1, pred2, 
+                   pred3, pred4) %>%  #, pred5, pred6) %>% 
+  write_csv(here("Data", "extant_ord_predictions.csv"))
+preds <- read_csv(here("Data", "extant_ord_predictions.csv"))
+```
+
+
+
+```{r}
+accuracy <- preds %>% 
+  group_by(method, var, mass) %>%  
+  filter(method == "phy_int") %>% 
+  summarise(accuracy = round((sum(dif == 0)/429) * 100, 
+                             digits = 1),
+            within1 = round((sum(dif <= 1)/429) * 100, digits = 1)) %>% 
+  select(var, accuracy, within1, method, mass) %>% 
+  arrange(desc(within1)) %>% view()
+
+accuracy %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
+
+accuracy %>% write_csv(here("Data", "Accuracy_Ord.csv"))
+```
+
+### Big difference preds
+
+```{r}
+preds %>% filter(dif ==1) %>% group_by(var) %>% count() %>% arrange(desc(n)) 
+preds %>% filter(dif ==2) %>% group_by(var) %>% count() %>% arrange(desc(n)) 
+preds %>% filter(dif ==3) %>% group_by(var) %>% count() %>% arrange(desc(n)) 
+```
+
+
+Which species go from scansorial to arboreal, and terrestrial to scansorial, and terrestrial to is?
+More than anything, species have the highest probability of being Terrestrial.
+```{r}
+preds %>% filter(actual == 1 & pred == 2) %>% count(name = "1to2")
+
+preds %>% filter(actual == 1 & pred == 3) %>% count(name = "1to3")
+
+preds %>% filter(actual == 1 & pred == 4) %>% count(name = "1to4")
+
+preds %>% filter(actual == 2 & pred == 1) %>% count(name = "2to1")
+
+preds %>% filter(actual == 2 & pred == 3) %>% count(name = "2to3")
+
+preds %>% filter(actual == 2 & pred == 4) %>% count(name = "2to4")
+
+preds %>% filter(actual == 3 & pred == 1) %>% count(name = "3to1")
+
+preds %>% filter(actual == 3 & pred == 2) %>% count(name = "3to2")
+
+preds %>% filter(actual == 3 & pred == 4) %>% count(name = "3to4")
+
+preds %>% filter(actual == 4 & pred == 1) %>% count(name = "4to1")
+
+preds %>% filter(actual == 4 & pred == 2) %>% count(name = "4to2")
+
+preds %>% filter(actual == 4 & pred == 3) %>% count(name = "4to3")
+```
+

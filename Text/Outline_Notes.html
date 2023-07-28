@@ -354,8 +354,23 @@ display: none;
 
 <div id="TOC">
 <ul>
+<li><a href="#questions-for-methods-and-results" id="toc-questions-for-methods-and-results">Questions for methods and
+results</a>
+<ul>
+<li><a href="#how-to-correct-for-mass" id="toc-how-to-correct-for-mass"><strong><em>How to correct for
+mass?</em></strong></a></li>
+<li><a href="#what-are-the-indices-doing" id="toc-what-are-the-indices-doing"><strong><em>What are the Indices
+Doing?</em></strong></a></li>
+<li><a href="#how-to-best-describe-climbing" id="toc-how-to-best-describe-climbing"><strong>How to best describe
+climbing?</strong>*</a></li>
+<li><a href="#which-measures-are-good-predictors" id="toc-which-measures-are-good-predictors"><strong><em>Which measures
+are good predictors?</em></strong></a></li>
+</ul></li>
+<li><a href="#notes" id="toc-notes">Notes:</a>
+<ul>
 <li><a href="#abstract-summary" id="toc-abstract-summary">Abstract /
 Summary</a></li>
+</ul></li>
 <li><a href="#outline" id="toc-outline">Outline</a>
 <ul>
 <li><a href="#introduction" id="toc-introduction">Introduction</a></li>
@@ -380,6 +395,102 @@ Forget!</a></li>
 </ul>
 </div>
 
+<p>Ready to roll: 4 July 2023</p>
+<p>TODO: - Run Models again using the var_complete gm??</p>
+<div id="questions-for-methods-and-results" class="section level1">
+<h1>Questions for methods and results</h1>
+<div id="how-to-correct-for-mass" class="section level3">
+<h3><strong><em>How to correct for mass?</em></strong></h3>
+<ul>
+<li>script = <code>Mass_Correction_Compare.Rmd</code></li>
+<li>Compare LM to GM (which models? all?)
+<ul>
+<li>use effect size, and ?bayes_r2? Loo?
+<ul>
+<li>script = <code>Mass_Correction_Compare.Rmd</code></li>
+<li>Looks great! lm better than gm, but not by much</li>
+</ul></li>
+</ul></li>
+</ul>
+</div>
+<div id="what-are-the-indices-doing" class="section level3">
+<h3><strong><em>What are the Indices Doing?</em></strong></h3>
+<ul>
+<li>How are indices correcting or not correcting for mass?
+<ul>
+<li>change slope</li>
+</ul></li>
+</ul>
+</div>
+<div id="how-to-best-describe-climbing" class="section level3">
+<h3><strong>How to best describe climbing?</strong>*</h3>
+<ul>
+<li>we used binary, and a couple ordinal schemes
+<ul>
+<li>ordinal schemes resulted in few scansorial species</li>
+<li>logistic regression gives probabilities, which can be interpreted
+directly</li>
+<li>hence binary made sense, but we tried ordinal too</li>
+</ul></li>
+</ul>
+</div>
+<div id="which-measures-are-good-predictors" class="section level3">
+<h3><strong><em>Which measures are good predictors?</em></strong></h3>
+<ul>
+<li>High slope values = (list)</li>
+<li><strong><em>BUT, phylogeny issue! Test known as
+“fossils”</em></strong>
+<ul>
+<li>can’t add new tips to phlogeny in prediction</li>
+<li>this affects both fossil and unknown taxa</li>
+<li>tested predictions of extant species, treating them as fossil
+species
+<ul>
+<li>found that 12 key measurements have accuracy values over 70%</li>
+</ul></li>
+<li><strong><em>BUT BIG FUCKING DEAL!!</em></strong>
+<ul>
+<li><p><strong>Predictions massively improve by removing phy from
+<code>re_form</code> BUT KEEPING THE TAXONOMY TERMS!!</strong></p></li>
+<li><p>predictions for PES2 went from <strong>87%</strong> to
+<strong>97%</strong> when using the taxonomy in the model.</p></li>
+<li><p>For a model that uses phy + order + fam + species, do this:</p>
+<pre><code>predict({{model}}, summary = T, 
+probs = c(0.055, 0.945),  
+re_formula = ~ (1|Order) + (1|Family) + (1|Genus_species), 
+resp = &#39;Locbin&#39;
+)</code></pre></li>
+<li><p>BUT DOES THIS HELP THE FOSSILS?</p>
+<ul>
+<li>they are (mostly) new families and orders and subclasses. Hmm.</li>
+</ul></li>
+</ul></li>
+</ul></li>
+<li><strong><em>Can taxonomic information inform
+predictions?</em></strong>
+<ul>
+<li>used family, order, subclass as additional grouping variables.</li>
+<li><code>NOT SURE HOW THIS TURNED OUT YET!!</code></li>
+<li><em>General statements</em> (tl;dr) = Digits are good!</li>
+<li>If no digits, then humerus length, ulna/radius length, Olecranon
+length (esp OLI), and, for hind limbs, Femur length.</li>
+</ul></li>
+<li><strong><em>Locomotion in Fossils</em></strong>
+<ul>
+<li>Our predictions are variable</li>
+<li>Talk about individual taxa here</li>
+<li>Talk about individual clades/families
+<ul>
+<li>ex: long metatarsals in glires vs. metatherians, mezozoics, and
+multi’s</li>
+</ul></li>
+</ul></li>
+</ul>
+</div>
+</div>
+<div id="notes" class="section level1">
+<h1>Notes:</h1>
+<p>How much of the locomotor inference is driven by extremes?</p>
 <div id="abstract-summary" class="section level2">
 <h2>Abstract / Summary</h2>
 <p>Locomotor variation has played a key role in the evolution of
@@ -408,6 +519,7 @@ variation and phylogenetic covariation to determine which suite of
 metrics can provide the most reliable and accurate estimates of
 locomotor mode, particularly climbing.</p>
 <p><br></p>
+</div>
 </div>
 <div id="outline" class="section level1">
 <h1>Outline</h1>
@@ -454,6 +566,7 @@ Echiothrix fare in the predictions?</li>
 </div>
 <div id="important-citations-not-to-forget" class="section level2">
 <h2>Important Citations not to Forget!</h2>
+<p><br> <br></p>
 </div>
 </div>
 

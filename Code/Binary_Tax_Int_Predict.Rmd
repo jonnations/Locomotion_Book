@@ -33,7 +33,11 @@ source(here("Code","Name_Change.R"))
 ```{r}
 dat <- read_csv(here("Data", "Extant_Master.csv"))
 
-fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+fdat <- read_csv(here("Data", "Fossil_Master.csv")) %>% 
+  mutate(Family = case_when(is.na(Family) ~ "Mesozoicdae",
+                            TRUE ~ Family)) %>% 
+  mutate(Order = case_when(is.na(Order) ~ "Mesozoicata",
+                            TRUE ~ Order))
 
 fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
 
@@ -52,7 +56,7 @@ pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1e
 Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
 
 ```{r}
-list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+list_b_lm <- read_rds(here("Data","B_lm_Ord_Fam_int_mods_mis.Rds"))
 #purrr keep_at is great!
 list_b2 <- list_b_lm %>% keep_at(pred_vars)
 
@@ -76,7 +80,8 @@ nnn <- function(mod, nm){
                     resp = "Locbin",
                     value = "Prob_of_Climbing",
                     allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
+                    # This is different
+                    re_formula = ~ (1|Order) + (1|Family)) %>% 
     as.data.frame() %>% 
     select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
     mutate(var = {{nm}})
@@ -105,7 +110,7 @@ nnn2 <- function(mod, nm){
     add_epred_draws(newdata = model_dat, 
                     resp = "Locbin",
                     value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
+                    allow_new_levels = TRUE, 
                     re_formula = NULL) %>% 
     as.data.frame() %>% 
     select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
@@ -118,8 +123,8 @@ nnn3 <- function(mod, nm){
     add_epred_draws(newdata = model_dat, 
                     resp = "Locbin",
                     value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
+                    allow_new_levels = TRUE, 
+                    re_formula = ~ (1|Order) + (1|Family)) %>% 
     as.data.frame() %>% 
     select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
     mutate(var = {{nm}})
@@ -130,21 +135,12 @@ nnn3 <- function(mod, nm){
 ```
 
 ### Plot helpers
+**Different List with Taxonomic Models**
 ```{r}
-#var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", #"Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", #"Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
-##just the "sigs"
-#var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", #"Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-## just the really important sigs
-#var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2")
-##pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
-##with the mean probability
-#var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
 
-# first one with no ls
-# ls cant be used!
 #var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl")
 
-var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul")
+var_acc = c("PES2", "MANUS", "PES", "HPI", "Ppl", "Ipl", "MANUS2", "Hl", "Fsw", "Sl", "Tpw", "Hsw", "OLI", "Pel", "Fdw", "Mtl", "Hpw", "Uol")
 
 ```
 
@@ -153,7 +149,7 @@ var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2"
 nm <- names(list_b2)
 
 pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
-  write_csv(here("Data", "Fossil_Int_Predictions.csv")) %>% 
+  write_csv(here("Data", "Fossil_Tax_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
          substrate = NA)
 
@@ -180,7 +176,7 @@ pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var
   #THIS IS AVERAGING PER SPECIES
   group_by(substrate, method, var, Genus_species, draw) %>% 
   summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
-  write_csv(here("Data", "All_Int_Predictions.csv"))
+  write_csv(here("Data", "All_Tax_Int_Predictions.csv"))
 ```
 ## Add means to the plots?
 Isn't really a good idea because there is uneven sampling across measurements
@@ -263,7 +259,7 @@ t3 <- pl5 / pl6 /pl7
 
 t3
 
-ggsave(here("Plots", "Predict_Int_Fossil.pdf"), height = 8, width = 13)
+ggsave(here("Plots", "Predict_Tax_Int_Fossil.pdf"), height = 8, width = 12)
 
 ```
 
@@ -300,14 +296,14 @@ t2 <- pl3 / pl4 + plot_layout(guides = "collect")
 
 wrap_plots(t1, t2, ncol = 1)
 
-ggsave(here("Plots", "Predict_Int_Extant.pdf"), height = 10, width = 13)
+ggsave(here("Plots", "Predict_Tax_Int_Extant.pdf"), height = 10, width = 12)
 
 ```
 
 ```{r}
 pl2 / pl4 + plot_layout(guides = "collect")
 
-ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
+ggsave(here("Plots", "Predict_Tax_Int_Extant2.pdf"), height = 6, width = 13)
 ```
 
 
@@ -315,5 +311,7 @@ ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
 ```{r}
 wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
-ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
+ggsave(here("Plots", "Predict_Tax_Int_All.pdf"), height = 16, width = 10)
 ```
+
+

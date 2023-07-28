@@ -57,7 +57,7 @@ Removing Sh from all analyses
  SI, HRI, HEB, OLI, BI, IM, FRI, FEB, CI, TRI
  
 ```{r}
-var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
+var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw")
 ```
 
 *All variables with <= 31% missing data:*
@@ -66,7 +66,7 @@ These variables will be included in the study, and missing values will be impute
 We added in a few more with between 30-50 missing data because they are good measurements:
 Tpw, Isl, Il, Pel, Hpw, HPI, Mcw, MRI, Ppw, PES2, CI
 ```{r}
-var_missing <- c("MANUS2", "MANUS3", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl")
+var_missing <- c("MANUS2", "MANUS3", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl",  "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw",  "lsMcw",  "lsPpw",  "lsCl", "Pipl", "lsPipl")
 ```
 *All variables with > 31% missing data:*
 Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw, Skl, Mtw, Fbdw, Fhd, Fgh, Fbmw, Hhw, Hhl, HHRI, HHW, *Cl*, Fbpw, Pipl, *PES2*, *Ppw*, *Mcw*, *MRI*, *Hpw*, *Pel*, *Il*, *Isl*, *Tpw*, Fbl, *HPI*, IRI, PR, Hdcw, DI, Tdw
@@ -74,10 +74,16 @@ Pdpw, Dpw, Pipw, Pdpl, Cal, Anl, Atw, Csw, Ccw, Ctl, Ctw, Al, Jl, Ipw, Dpl, Pppw
 ```{r}
 var_missing_complete <- c("MANUS3", "MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "Pdpw", "Dpw", "Pipw", "Pdpl", "Cal", "Anl", "Atw", "Csw", "Ccw", "Ctl", "Ctw", "Al", "Jl", "Ipw", "Dpl", "Pppw", "Skl", "Mtw", "Fbdw", "Fhd", "Fgh", "Fbmw", "Hhw", "Hhl", "HHRI", "HHW", "Cl", "Fbpw", "Pipl", "PES2", "Ppw", "Mcw", "MRI", "Hpw", "Pel", "Il", "Isl", "Tpw", "Fbl", "HPI", "IRI", "PR", "Hdcw", "DI", "Tdw")
 
-var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
+var_complete_lm <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
 
+var_complete_gm <- c("gm", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI")
+
+
+var_complete_lm %>% write_rds(here("Data", "var_complete_lm.Rds"))
+var_complete_gm %>% write_rds(here("Data", "var_complete_gm.Rds"))
 var_complete %>% write_rds(here("Data", "var_complete.Rds"))
 var_missing %>% write_rds(here("Data", "var_missing.Rds"))
+
 ```
 
 
@@ -263,7 +269,82 @@ for(i in var_missing){
 
 list_b_gm %>% write_rds(here("Data","B_gm_mods_mis.Rds"))
 ```
+# Pipl lsPipl
 
+#### Run gm
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+list_b_gm <- read_rds(here("Data","B_gm_mods_mis.Rds"))
+
+for(i in var_missing_again){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ gm + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw + 
+       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_gm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 2,
+                         data2 = list(A = A),
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+#list_b_gm %>% write_rds(here("Data","B_gm_mods_mis.Rds"))
+```
+
+
+#### Run lm
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+for(i in var_missing){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ gm + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw + 
+       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.5)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_gm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 2,
+                         data2 = list(A = A),
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+list_b_gm %>% write_rds(here("Data","B_gm_mods_mis.Rds"))
+```
 
 
 

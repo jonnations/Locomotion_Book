@@ -1,11 +1,13 @@
 ---
-title: "Binary Interaction Classification"
+title: "Binary Taxon Interaction Classification"
 output: html_notebook
 ---
 
-Copy of `Binary_Missing_Models.Rmd` but with the interaction term!
+Copy of `Binary_Missing_Models.Rmd` but with the interaction term AND the taxonomic groupings! This should help the predictions.
 
-Predicting binary climbing classifications (tree vs. ground) using postcranial measurements and interactions. Models will also incorperate intraspecific variation and phylogenetic variation.
+Using order and family
+
+Predicting binary climbing classifications (tree vs. ground) using postcranial measurements and interactions. Models will also incorporate intraspecific variation and phylogenetic variation.
 
 # Preparation  
 
@@ -31,12 +33,12 @@ source(here("Code","Name_Change.R"))
 All data loading and wrangling in `Code/Data_Load.Rmd`
 ```{r}
 dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
-  filter(Genus_species !=  c('Leopardus_geoffroyi', 
-                             'Urocyon_cinereoargenteus')) %>% 
-  mutate(Family = case_when(
-    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
-    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
-    TRUE ~ Family))
+  filter( Genus_species !=  c('Leopardus_geoffroyi', 'Urocyon_cinereoargenteus')) %>% 
+  mutate(Family = 
+           case_when(Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+                     Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+                     TRUE ~ Family))
+
 #species in dataset
 spp_obs <- dat$Taxon_Upham_style %>% unique()
 
@@ -57,8 +59,8 @@ A <- ape::vcv.phylo(tr, corr = TRUE)
 Follows `Binary_Missing_Models.Rmd`
 
 ```{r}
-var_complete <- read_rds(here("Data", "var_complete.Rds"))
-var_missing <- read_rds(here("Data", "var_missing.Rds"))
+#var_complete <- write_rds(here("Data", "var_complete.Rds"))
+#var_missing <- write_rds(here("Data", "var_missing.Rds"))
 ```
 
 
@@ -71,38 +73,39 @@ The percentages are stored in the df `Missing_Data_Percents.csv`
 #### Prior  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-p1 = c(prior(normal(0, 5), class = Intercept),
+
+p1 = c(prior(normal(0, 1), class = Intercept),
                 prior(normal(0, 2), class = b),
-                prior(normal(0, 0.3), class = sd))
+                prior(normal(0, 0.5), class = sd))
 ```
 
 #### Prelim model  
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_bin ~ Uol * log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_bin ~ Sl * log_Mass + (1|Family) + (1|Order) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = bernoulli(),
           data = dat, refresh = 0, cores = 4,
           prior = p1)
 ```
 
-
 #### Run Loop
-```{r  message = FALSE, warning=FALSE, results = 'hide'}
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 list_b_lm <- vector(mode ="list")
 
 for(i in var_complete){
   list_b_lm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         formula=(paste0("Loc_bin ~", i, "*log_Mass+(1|Family)+(1|Order)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = bernoulli(),
                          newdata=dat,
                          refresh = 0,
                          cores = 2,
                          data2 = list(A = A),
                          prior = p1,
-                         seed = 145
+                         seed = 145,
+                         control = list(adapt_delta = 0.98)
                          ) 
 }
 
@@ -121,7 +124,7 @@ Prior must be called in the loop
 ```{r message = FALSE, warning=FALSE, results = 'hide'}
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_Mass+(1|Family)+(1|Order)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
   imp_mod <- bf(paste0(i,"| mi() ~ log_Mass + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
@@ -134,8 +137,8 @@ for(i in var_missing){
   mutate(
     prior = case_when(
       class == "b"  ~ "normal(0, 2)",
-      class == "sd" ~ "normal(0, 0.3)",
-      class == "Intercept" ~ "normal(0, 5)",
+      class == "sd" ~ "normal(0, 0.5)",
+      class == "Intercept" ~ "normal(0, 1)",
       class == "sigma" ~ "normal(0, 0.5)",
       TRUE ~ prior
       ))
@@ -146,11 +149,12 @@ for(i in var_missing){
                          cores = 2,
                          data2 = list(A = A),
                          prior = pri,
-                         seed = 145
+                         seed = 145,
+                         control = list(adapt_delta = 0.98)
                          ) 
 }
 
-list_b_lm %>% write_rds(here("Data","B_lm_int_mods_mis.Rds"))
+list_b_lm %>% write_rds(here("Data","B_lm_Ord_Fam_int_mods_mis.Rds"))
 
 ```
 
@@ -164,16 +168,16 @@ list_b_lm %>% write_rds(here("Data","B_lm_int_mods_mis.Rds"))
 same prior as above
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-p1 = c(prior(normal(0, 5), class = Intercept),
+p1 = c(prior(normal(0, 1), class = Intercept),
                 prior(normal(0, 2), class = b),
-                prior(normal(0, 0.3), class = sd))
+                prior(normal(0, 0.5), class = sd))
 ```
 
 #### Prelim model  
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 #initial fit
-mm <- brm(Loc_bin ~ Sl * log_gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_bin ~ Sl * gm + (1|Family) + (1|Order) + (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = bernoulli(),
           data = dat, refresh = 0, cores = 4,
@@ -187,14 +191,15 @@ list_b_gm <- vector(mode ="list")
 
 for(i in var_complete){
   list_b_gm[[i]]<- update(mm,
-                         formula=(paste0("Loc_bin ~", i, "*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         formula=(paste0("Loc_bin ~", i, "*gm+(1|Family)+(1|Order)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = bernoulli(),
                          newdata=dat,
                          refresh = 0,
                          cores = 2,
                          data2 = list(A = A),
                          prior = p1,
-                         seed = 145
+                         seed = 145,
+                         control = list(adapt_delta = 0.98)
                          ) 
 }
 
@@ -213,8 +218,8 @@ Prior must be called in the loop
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 for(i in var_missing){
-  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
-  imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*gm+(1|Family)+(1|Order)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ gm + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
        (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
@@ -226,8 +231,8 @@ for(i in var_missing){
   mutate(
     prior = case_when(
       class == "b"  ~ "normal(0, 2)",
-      class == "sd" ~ "normal(0, 0.3)",
-      class == "Intercept" ~ "normal(0, 5)",
+      class == "sd" ~ "normal(0, 0.5)",
+      class == "Intercept" ~ "normal(0, 1)",
       class == "sigma" ~ "normal(0, 0.5)",
       TRUE ~ prior
       ))
@@ -238,10 +243,14 @@ for(i in var_missing){
                          cores = 2,
                          data2 = list(A = A),
                          prior = pri,
-                         seed = 145
+                         seed = 145,
+                         control = list(adapt_delta = 0.98)
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_gm_int_mods_mis.Rds"))
+list_b_gm %>% write_rds(here("Data","B_gm_Ord_Fam_int_mods_mis.Rds"))
 ```
+
+
+
 

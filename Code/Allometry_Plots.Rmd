@@ -1,0 +1,96 @@
+---
+title: "Allometry"
+output: html_notebook
+---
+
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  filter(Genus_species !=  c('Leopardus_geoffroyi', 
+                             'Urocyon_cinereoargenteus')) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family))
+
+```
+
+
+Log transformed linear measurements
+
+```{r}
+plott <- function(mass, var){
+  dat %>% ggplot(aes(y = {{mass}}, 
+             x = {{var}},
+             color = as.factor(Loc_bin))) +
+               geom_point(alpha = 0.8) +
+               geom_abline(intercept = 0, slope = 1) +
+    theme_bw() +
+    theme(legend.position = "none") +
+    scale_color_viridis_d(begin = 0.2, end = 0.7) +
+    xlim(-4,4) + ylim(-4, 4)
+  }
+```
+
+
+```{r}
+( plott(log_gm, Ppl) | plott(log_gm, Hl) ) / (plott(log_Mass, Ppl) | plott(log_Mass, Hl)) +
+  plot_annotation(
+    title = "log mass and log geometric mean plotted\nwith log Prox phalanx length\nand log Humerus length",
+    subtitle = "climb = green, noclimb = blue") -> T1
+T1
+```
+
+
+```{r}
+(plott(log_Mass, lsPpl) | plott(log_Mass, lsHl)) / (plott(log_gm, lsPpl) | plott(log_gm, lsHl)) +
+  plot_annotation(
+    title = "log mass and log geometric mean plotted\nwith log-shape ratio Prox phalanx\nand log-shape ratio humerus",
+    subtitle = "climb = green, noclimb = blue") -> T2
+T2
+```
+
+```{r}
+( plott(log_Mass, MANUS) | plott(log_Mass, CI) ) / ( plott(log_gm, MANUS) | plott(log_gm, CI) ) +
+  plot_annotation(
+    title = "log mass and log geometric mean plotted\nwith Prox Phalanx index (MANUS) \nand humerus robustness index",
+    subtitle = "climb = green, noclimb = blue") -> T3
+T3
+```
+
+
+```{r}
+(plott(scale2(gm), Ppl) | plott(scale2(gm), Hl)) / (plott(scale2(gm), lsPpl) | plott(scale2(gm), lsHl)) -> T4
+```
+
+```{r}
+
+wrap_plots(T1, T2, T3, T4, ncol = 1, heights = c(2/8, 2/8, 2/8, 2/8)) + plot_annotation(
+    title = "log(mass) and log(geom.mean) w/ prox phalanx and humerus measures",
+    subtitle = "climb = green, noclimb = blue, 'ls' prefix means log-shape ratio,\nMANUS is prox phalanx ratio, HRI is humeral robustness\nThe 4 plots at the bottom are non-log transformed gm - ignore the 'scale2' thing")
+
+ggsave(here("Plots","Allometry_1.pdf"), height = 18, width = 6)
+```
+
+
+

@@ -89,7 +89,7 @@ nnn <- function(mod, nm){
 ```{r}
 extant_climb <- c("Caluromys_derbianus", "Tamiasciurus_douglasii","Tupaia_glis", "Cynocephalus_volans", "Glaucomys_sabrinus")
 
-extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris", "Sorex_trowbridgii", "Gerbillus_gerbillus", "Monodelphis_domestica")
+extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris", "Sorex_trowbridgii", "Thomomys_bottae", "Monodelphis_domestica")
 
 
 old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")

@@ -8,15 +8,64 @@ output:
 
 Ready to roll: 4 July 2023
 
-Questions 
-  - ***How to correct for mass?***
-    - script = `Mass_Correction_Compare.Rmd`
-    - Compare LM to GM (which models? all?)
-      - use effect size, and ?bayes_r2? Loo?
+TODO:
+- Run Models again using the var_complete gm??
+
+# Questions for methods and results
+
+### ***How to correct for mass?***  
+  - script = `Mass_Correction_Compare.Rmd`
+  - Compare LM to GM (which models? all?)
+    - use effect size, and ?bayes_r2? Loo?
+      - script = `Mass_Correction_Compare.Rmd`
+      - Looks great! lm better than gm, but not by much
+      - the strength and even direction of the mass correction change when adding interaction term.
   
-  - ***What are the Indices Doing?***
-    - How are indices correcting or not correcting for mass?
-    - script = `Mass_Correction_Compare.Rmd`
+### ***What are the Indices Doing?***
+  - How are indices correcting or not correcting for mass?
+    - Results plotted in `Plots/Binary_Int_Mass_Effects.pdf` and the no-'Int' version
+    - Indices generally limit the effect of body size on the relationship between phenotype and climbing
+    - Several interesting points:
+      - Crural Index in particular still maintains a strong body-size correlation that needs to be corrected for.
+      - Less so, but still substantial, in BI, HEB, HRI, IM, MRI, OLI, PRI, & PES(2)
+      - Geometric Mean mass effects are stronger, meaning that gm does less to remove the body size confound.
+      
+### **How to best describe climbing?***
+  - we used binary, and a couple ordinal schemes
+    - ordinal schemes resulted in few scansorial species
+    - logistic regression gives probabilities, which can be interpreted directly
+    - hence binary made sense, but we tried ordinal too
+      
+### ***Which measures are good predictors?***
+  - High slope values = (list)
+  - ***BUT, phylogeny issue! Test known as "fossils"***
+    - can't add new tips to phylogeny in prediction
+    - this affects both fossil and unknown taxa
+    - tested predictions of extant species, treating them as fossil species
+      - found that 12 key measurements have accuracy values over 70%
+    - *General statements* (tl;dr) = Digits are good!
+    - If no digits, then humerus length, ulna/radius length, Olecranon length (esp OLI), and, for hind limbs, Femur length.
+      
+  - ***Can taxonomic information inform predictions?***
+      - *Point estimate predictions improve with taxonomy, but uncertainty greatly increases*
+      - For a model that uses phy + order + fam + species, do this:
+        ```
+        predict({{model}}, summary = T, 
+        probs = c(0.055, 0.945),  
+        re_formula = ~ (1|Order) + (1|Family) + (1|Genus_species), 
+        resp = 'Locbin'
+        )
+        ```
+      - This adds tremendous uncertainty to the fossil predictions 
+         - they are (mostly) new families and orders and subclasses. Hmm. 
+        
+    
+  - ***Locomotion in Fossils***
+    - Our predictions are variable
+    - Talk about individual taxa here
+    - Talk about individual clades/families
+      - ex: long metatarsals in glires vs. metatherians, mezozoics, and multi's
+     
 
 
 
@@ -70,4 +119,15 @@ Stuff here
 <br>
 <br>
 
+```{r}
+library(lme4)
+library(equatiomatic)
+library(texPreview)
+MANUS ~Hl*log_Mass+(1|Family)+(1|Order)
+fm1 <- lmer(MANUS ~ Hl*log_Mass+(1|Family)+(1|Order), dat)
+extract_eq(fm1) %>% tex_preview()
+
+fm2 <- glm(Loc_bin ~ Hl*log_Mass, dat, family = binomial)
+extract_eq(fm2) %>% tex_preview()
+```
 

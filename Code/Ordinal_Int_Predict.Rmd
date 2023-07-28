@@ -1,5 +1,5 @@
 ---
-title: "Predicting Binary Interaction Climbing"
+title: "Predicting Ordinal Interaction Climbing"
 output: html_notebook
 ---
 
@@ -52,13 +52,13 @@ pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1e
 Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
 
 ```{r}
-list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+list_o_lm <- read_rds(here("Data","O_lm_int_mods_mis.Rds"))
 #purrr keep_at is great!
-list_b2 <- list_b_lm %>% keep_at(pred_vars)
+list_o2 <- list_o_lm %>% keep_at(pred_vars)
 
-names(list_b2)
+names(list_o2)
 
-rm(list_b_lm)
+rm(list_o_lm)
 ```
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
 
@@ -66,22 +66,47 @@ Now, loop through (or purrr) models and predict the climbing scores for each fos
 
 ## Fossil Functions
 ```{r}
-colz <- c("Genus_species", "log_Mass", names(list_b2), "Specimen_Num")
+colz <- c("Genus_species", "log_Mass", names(list_o2), "Specimen_Num")
 
-fd <- fdat %>% select(colz)
+fd <- fdat %>% select(all_of(colz))
 
 nnn <- function(mod, nm){
-  {{mod}} %>% 
+ d <-  {{mod}} %>% 
     add_epred_draws(newdata = fdat, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
+  select(Genus_species, .draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(var = {{nm}},
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
 }
 
+
+modes <- function(df){ 
+  {{df}} %>% rownames_to_column('id') %>%
+  left_join(
+    {{df}} %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
+}
 ```
 
 # Extant Functions
@@ -103,26 +128,52 @@ model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))
 nnn2 <- function(mod, nm){
   {{mod}} %>% 
     add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NULL) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
+    select(Genus_species, .draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(var = {{nm}},
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
   
 }
 
 nnn3 <- function(mod, nm){
   {{mod}} %>% 
     add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
+    select(Genus_species, .draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(var = {{nm}},
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
 }
 
 
@@ -149,25 +200,82 @@ var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2"
 ```
 
 
-```{r}
-nm <- names(list_b2)
+##TESTING
+#### Works
 
-pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
-  write_csv(here("Data", "Fossil_Int_Predictions.csv")) %>% 
+```{r}
+ttt <- list_o2$Hl
+
+tt <- ttt %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+  select(Genus_species, .draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(var = {{nm}},
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4)) %>%
+  ungroup() 
+
+
+
+
+tt <- tt %>% 
+  rownames_to_column('id') %>%
+  left_join(
+    tt %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
+```
+
+## TEST PLOTS
+```{r}
+
+tt %>% group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y = Genus_species, x = n, fill = max_rank)) + geom_bar(position = "fill", stat = 'identity')
+
+tt %>% ggplot(aes(y = Genus_species, x = wa_rank)) + stat_halfeye() + xlim(1, 4)
+```
+
+##########
+## DEAL WTIH "CLIMB" & "GROUND" categories
+#############
+```{r}
+nm <- names(list_o2)
+
+pred_df <- map2(list_o2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% modes() %>% 
+  write_csv(here("Data", "Fossil_Ord_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
          substrate = NA)
 
 
-pred_df_ext_full <- map2(list_b2, nm, ~nnn2(.x, .y)) %>% 
-  bind_rows() %>% 
+pred_df_ext_full <- map2(list_o2, nm, ~nnn2(.x, .y)) %>% 
+  bind_rows() %>% modes() %>% 
   mutate(method = "Full",
          substrate = case_when(
     Genus_species %in% extant_climb ~ "Climb",
     TRUE ~ "Ground"
   ))
 
-pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>% 
-  bind_rows() %>% 
+pred_df_ext_fos <- map2(list_o2, nm, ~nnn3(.x, .y)) %>% 
+  bind_rows() %>% modes() %>% 
   mutate(method = "Fossil",
          substrate = case_when(
     Genus_species %in% extant_climb ~ "Climb",
@@ -176,26 +284,10 @@ pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>%
 
 
 pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_acc) %>% 
-  mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
-  #THIS IS AVERAGING PER SPECIES
-  group_by(substrate, method, var, Genus_species, draw) %>% 
-  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
-  write_csv(here("Data", "All_Int_Predictions.csv"))
-```
-## Add means to the plots?
-Isn't really a good idea because there is uneven sampling across measurements
-```{r}
-#meandf <- pred_all %>% group_by(substrate, method, Genus_species, draw) %>% 
-#  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% 
-#  ungroup() %>% 
-#  mutate(var = "Mean")
-#
-#pred_all <- bind_rows(pred_all, meandf)
+  write_csv(here("Data", "All_Ord_Int_Predictions.csv"))
 ```
 
-
-
-
+ 
 # Whole Shebang  
 
 
@@ -263,7 +355,7 @@ t3 <- pl5 / pl6 /pl7
 
 t3
 
-ggsave(here("Plots", "Predict_Int_Fossil.pdf"), height = 8, width = 13)
+ggsave(here("Plots", "Predict_Ord_Int_Fossil.pdf"), height = 8, width = 13)
 
 ```
 
@@ -317,3 +409,4 @@ wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
 ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
 ```
+
