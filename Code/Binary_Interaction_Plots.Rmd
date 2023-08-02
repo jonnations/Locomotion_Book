@@ -314,4 +314,3 @@ ggplot(aes(x = .data[[xaxis]], y = Probability)) +
          axis.line = element_line(colour = "NA")
          )
 ```
-
