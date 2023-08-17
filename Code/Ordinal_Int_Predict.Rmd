@@ -75,6 +75,9 @@ multi <- c("Rugosodon_eurasiaticus", "Jeholbaatar_kielanae", "Filikomys_primaevu
 
 primate <- c("Plesiadapis_cookei", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
 
+## Binary important vars
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul")
+
 # Fossil Data
 colz <- c("Genus_species", "log_Mass", names(list_o2), "Specimen_Num")
 
@@ -312,7 +315,7 @@ rm(pred_df_ext_full, pred_df_ext_fos, pred_df, pred_df_ext_full_avg, pred_df_ext
 d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
 d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
 
-d4 <- c('#770194', '#4965ab', "#2abb9c", "#95d227")
+d4 <- c('#770194', '#1981db', "#2abb9c", "#79bc23")
 
 pred_all %>%  
   unite("specimen", Genus_species, Specimen_Num, sep = " ") %>% 
@@ -332,9 +335,81 @@ pred_all %>%
   
 ```
 
+# Extant Plots
+
+### Full
 
 ```{r}
-pred_all_avg %>% 
+
+
+p1 <- pred_all_avg %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p2 <- pred_all_avg %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p1+p2 + plot_annotation(title = "Extant Predicitons With Phylogenetic Information") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Predict_Ord_Extant_Full.pdf"), width = 8.5, height = 12)
+  
+```
+
+### Fossil
+
+```{r}
+
+p1 <- pred_all_avg %>% 
    mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
                           max_rank == "P2"  ~ "Scansorial",
                           max_rank == "P3"  ~ "Terrestrial",
@@ -345,18 +420,159 @@ pred_all_avg %>%
                                "Terrestrial", 
                                "Inter-Substrate"))) %>%
   filter(method == "Fossil",
-         var == "OLI") %>% 
-  group_by(Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
   ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
   geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
   scale_fill_manual(values = rev(d4)) + 
-  labs(y = "") +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
   theme_classic() +
   theme( panel.border = element_blank(),
          axis.line = element_line(colour = "NA"),
          axis.ticks = element_line(linewidth = rel(0.25)),
-         legend.position='bottom'
-         ) 
+         legend.position='none',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p2 <- pred_all_avg %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p1+p2 + plot_annotation(title = "Extant Predicitons Without Phylogenetic Information") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Predict_Ord_Extant_Fossil.pdf"), width = 8.5, height = 12)
+  
+```
+
+# Fossil Plots
+
+
+```{r}
+p1 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% old) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+    coord_cartesian(xlim = c(0,1),
+                  expand = FALSE)+
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         panel.background = element_rect(fill = 'grey85')
+         ) + 
+  facet_wrap(~fct_relevel(var,rev(c("PES2", "HPI",  "MANUS", "PES",  "Hl", "Ppl",  "Pipl", "OLI", "Rl", "MANUS2",  "Uol", "Ipl",  "Ul", "Fl"))), ncol = 2, as.table = F)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% multi) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+      coord_cartesian(xlim = c(0,1),
+                  expand = FALSE)+
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         panel.background = element_rect(fill = 'grey85')
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p3 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% primate) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+      coord_cartesian(xlim = c(0,1),
+                  expand = FALSE)+
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         panel.background = element_rect(fill = 'grey85')
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p1+p2 + p3 + plot_annotation(title = "Fossil Predicitons") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Predict_Ord_Fossil.pdf"), width = 12.7, height = 12)
   
 ```
 
