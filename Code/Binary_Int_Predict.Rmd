@@ -144,7 +144,7 @@ nnn3 <- function(mod, nm){
 # ls cant be used!
 #var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl")
 
-var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul")
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "combined")
 
 ```
 
@@ -181,6 +181,8 @@ pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var
   group_by(substrate, method, var, Genus_species, draw) %>% 
   summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
   write_csv(here("Data", "All_Int_Predictions.csv"))
+
+pred_all <- read_csv(here("Data", "All_Int_Predictions.csv"))
 ```
 ## Add means to the plots?
 Isn't really a good idea because there is uneven sampling across measurements
@@ -198,12 +200,19 @@ Isn't really a good idea because there is uneven sampling across measurements
 
 # Whole Shebang  
 
+```{r}
+pred_mult <- read_csv(here("Data","Bin_Multiple_Predictions.csv"))
+
+pred_all <-  bind_rows(pred_all, pred_mult)
+```
+
+
 
 ### function
 ```{r}
 # shading
-shades <- data.frame(xmin=seq(1.5,13-1.5, 2),
-                     xmax=seq(2.5,13+.5, 2),
+shades <- data.frame(xmin=seq(1.5,15-1.5, 2),
+                     xmax=seq(2.5,15+.5, 2),
                      ymin=0, ymax=Inf)
 
 hplot <- function(groups, method){
