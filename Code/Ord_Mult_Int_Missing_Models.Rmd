@@ -351,22 +351,6 @@ Now, loop through (or purrr) models and predict the climbing scores for each fos
 
 # Predictions  
 
-## Fossil Functions
-```{r}
-nnn <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = fdat, 
-                    resp = "Locbin",
-                    value = "Prob_of_Climbing",
-                    allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
-    as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
-}
-
-```
-
 # Extant Functions
 
 ```{r}
@@ -380,95 +364,131 @@ multi <- c("Rugosodon_eurasiaticus", "Jeholbaatar_kielanae", "Filikomys_primaevu
 
 primate <- c("Plesiadapis_cookei", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
 
-model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))
+spec_num = rep(1:18)
 
-nnn2 <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
-                    value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
-                    re_formula = NULL) %>% 
-    as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
-  
-}
-
-nnn3 <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
-                    value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
-    as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
-}
-
-
+model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))  %>%  group_by(Genus_species, Taxon_Upham_style) %>%  summarise_at(14:93, mean, na.rm = T)
 
 ```
 
 ## Extant
 
 ```{r}
-pred_df <- mod1 %>% 
-    add_epred_draws(newdata = fdat, 
-                    resp = "Locbin",
-                    value = "Prob_of_Climbing",
-                    allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
-    as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-  mutate(method = "Fossil",
-         substrate = NA)
+## Full Predictions
 
-pred_df_ext_full <- mod1 %>% 
+d <- mod1 %>% 
     add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NULL) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-  mutate(method = "Full",
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species',  '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_full <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  ) %>% mutate(method = "Full",
          substrate = case_when(
     Genus_species %in% extant_climb ~ "Climb",
     TRUE ~ "Ground"
   ))
-    
 
-pred_df_ext_fos <- mod1 %>% 
+d <- mod1 %>% 
     add_epred_draws(newdata = model_dat, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species', '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_fos <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id') %>% 
   mutate(method = "Fossil",
          substrate = case_when(
     Genus_species %in% extant_climb ~ "Climb",
     TRUE ~ "Ground"
   ))
+
 ```
+
+
 
 ## Extinct
 
 ```{r}
-pred_ext <- function(mod, dat) {
-  {{mod}} %>% 
+pred_ext <- function(mod, dat){
+ d <-  {{mod}} %>% 
     add_epred_draws(newdata = {{dat}}, 
-                    resp = "Locbin",
+                    resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-  mutate(method = "Fossil",
-         substrate = NA)
+  select(Genus_species,.draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+ 
+ d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
 }
 
 
@@ -498,7 +518,8 @@ df10 <- pred_ext(mod10, fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni
 
 df11 <- pred_ext(mod11, fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
 
-pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>% mutate(var = 'all')
+pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>%  mutate(method = "Fossil",
+         substrate = NA)
 ```
 
 
@@ -507,15 +528,69 @@ pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>
 pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% #filter(var %in% var_acc) %>% 
   mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
   #THIS IS AVERAGING PER SPECIES
-  group_by(substrate, method, Genus_species, draw) %>% 
-  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% mutate(var = "combined") %>% 
-  write_csv(here("Data", "Bin_Multiple_Predictions.csv"))
+  #group_by(substrate, method, Genus_species, draw) %>% 
+  #summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() 
+  mutate(var = "combined") %>% 
+  write_csv(here("Data", "Ord_Multiple_Predictions.csv"))
 
 
 ```
 
 # Whole Shebang  
 
+```{r}
+d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
+d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
+
+d4 <- c('#770194', '#1981db', "#2abb9c", "#79bc23")
+
+p1 <- pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(method == "Full") %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "full", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         ) 
+p2 <- pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(method == "Fossil",
+         substrate %in% c('Ground', 'Climb')) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         )
+
+p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
+```
+
+
+```{r}
+pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(is.na(substrate)) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         )
+```
 
 ### function
 ```{r}

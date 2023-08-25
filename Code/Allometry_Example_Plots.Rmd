@@ -33,8 +33,21 @@ aloplot <- function(mass, var){
               se = FALSE) +
   coord_fixed() +
   geom_abline(slope = 1, intercept = 0, linetype = 2) +
-  xlim(-2.5, 2.5) + ylim(-2.5, 2.5) + theme_bw()
+  #xlim(-2.5, 2.5) + ylim(-2.5, 2.5) 
+  theme_bw()
 }
+```
+
+
+```{r}
+aloplot(log_gm, Mtl)   -> tp1
+aloplot(log_gm, lsMtl)   -> tp2
+
+tp1 + tp2 + plot_layout(guides = 'collect')
+```
+
+```{r}
+aloplot(log_gm, lsHl)
 ```
 
 
@@ -196,6 +209,28 @@ aloplot(log_gm, HEB) +
 (p1 + plot_spacer() + p3) / (p4 + p5 + p6) / (p7 + p8 + p9)  +
   plot_layout(guides = 'collect') + plot_annotation(title = "Functional indices")
 ```
+
+
+
+## Size Logistic Plots
+
+```{r}
+dat %>% ggplot(aes(y = Loc_bin, x = Ppl, color = log_Mass)) + 
+  geom_jitter(width = 0, height = 0.1) +
+  scale_color_viridis_c() +
+  labs(y = 'Binary Locomotion') +
+  theme_bw() -> p1
+
+dat %>% ggplot(aes(y = Loc_bin, x = lsPpl, color = log_Mass)) + 
+  geom_jitter(width = 0, height = 0.1) +
+  scale_color_viridis_c() +
+  labs(y = "") +
+  theme_bw() -> p2
+
+p1 + p2 + plot_layout(guides = "collect")
+```
+
+
 
 ## Models 
 
