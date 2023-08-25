@@ -332,6 +332,6 @@ for(i in var_missing_lsr){
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_lsr_int_mods_mis.Rds"))
+list_b_lsr %>% write_rds(here("Data","B_lsr_int_mods_mis.Rds"))
 ```
 
