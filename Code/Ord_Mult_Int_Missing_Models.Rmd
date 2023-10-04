@@ -596,19 +596,19 @@ pred_all %>%
 ```{r}
 
 hplot <- function(groups, method){
-  pred_all %>% filter(Genus_species %in% {{groups}},
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
                          method == {{method}}) %>% 
-  ggplot(aes(y = Prob_of_Climbing, 
-             x = Genus_species, 
-             #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = c(0.5, 0.68268), 
-                     #linewidth = c(0.75, 0.5), 
-                     position = position_dodge(width = -.6)) + ylim(0,1) +
-    labs(x = "", y = "Probability of Climbing") +
-  scale_color_manual(values = pal) + theme_bw() + 
-  theme(axis.text.x=element_text(angle=45, hjust=1))
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))
 }
 
 ```
@@ -619,21 +619,33 @@ hplot <- function(groups, method){
 
 ### Big Plot
 ```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
 pl5 <- hplot(old, "Fossil") + 
-  ggtitle("Mesozoic Mammal Predictions") 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
 
 pl6 <- hplot(multi, "Fossil") + 
   ggtitle("Multituberculate Predicitons") 
 
 pl7 <- hplot(primate, "Fossil") + 
-  ggtitle("Primate Predicitons") 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
 
 
-t3 <- pl5 / pl6 /pl7
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
 
 t3
 
-ggsave(here("Plots", "Predict_Bin_Mult_Fossil.pdf"), height = 8, width = 13)
+ggsave(here("Plots", "Predict_Ord_Mult_All.pdf"), height = 11, width = 8)
 
 ```
 
