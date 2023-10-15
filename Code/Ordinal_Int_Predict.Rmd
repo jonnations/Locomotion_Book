@@ -304,9 +304,12 @@ plan(sequential)
 pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_acc) %>% 
   write_csv(here("Data", "All_Ord_Int_Predictions.csv")) 
 
-pred_all_avg <- bind_rows(pred_df_ext_full_avg, pred_df_ext_fos_avg) %>% filter(var %in% var_acc)
+pred_all_avg <- bind_rows(pred_df_ext_full_avg, pred_df_ext_fos_avg) %>% filter(var %in% var_acc) %>% 
+  write_csv(here("Data", "All_Ord_Int_Avg_Predictions.csv")) 
 
 rm(pred_df_ext_full, pred_df_ext_fos, pred_df, pred_df_ext_full_avg, pred_df_ext_fos_avg)
+
+pred_all <- read_csv(here("Data", "All_Ord_Int_Predictions.csv"))
 ```
 
 ## Percent Barplots
@@ -315,7 +318,7 @@ rm(pred_df_ext_full, pred_df_ext_fos, pred_df, pred_df_ext_full_avg, pred_df_ext
 d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
 d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
 
-d4 <- c('#770194', '#1981db', "#2abb9c", "#79bc23")
+d4 <- c(P4 = '#770194', P3 = '#1981db', P2 = "#2abb9c", P1 = '#79bc23')
 
 pred_all %>%  
   unite("specimen", Genus_species, Specimen_Num, sep = " ") %>% 
@@ -341,6 +344,7 @@ pred_all %>%
 
 ```{r}
 
+d4 <- c('Inter-Substrate' = '#770194', 'Terrestrial' = '#1981db', 'Scansorial' = "#2abb9c", 'Arboreal' = '#79bc23')
 
 p1 <- pred_all_avg %>% 
    mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",

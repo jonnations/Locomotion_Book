@@ -130,19 +130,8 @@ nnn3 <- function(mod, nm){
 ```
 
 ### Plot helpers
+High accuracy variables
 ```{r}
-#var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", #"Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", #"Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
-##just the "sigs"
-#var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", #"Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-## just the really important sigs
-#var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2")
-##pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
-##with the mean probability
-#var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
-
-# first one with no ls
-# ls cant be used!
-#var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl")
 
 var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "combined")
 
@@ -213,7 +202,7 @@ pred_all <-  bind_rows(pred_all, pred_mult)
 # shading
 shades <- data.frame(xmin=seq(1.5,15-1.5, 2),
                      xmax=seq(2.5,15+.5, 2),
-                     ymin=0, ymax=Inf)
+                     ymin=-Inf, ymax=Inf)
 
 hplot <- function(groups, method){
   pred_all %>% filter(Genus_species %in% {{groups}},
@@ -235,7 +224,9 @@ hplot <- function(groups, method){
                             xmax=xmax, 
                             ymin = ymin, 
                             ymax = ymax), 
+              vjust = -0.2,
               alpha = 0.125) +
+  scale_y_continuous(limits = c(0,1), expand = c(0.02, 0.02)) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
         panel.border = element_rect(colour = "grey40", fill=NA, size=0.7))
 }
@@ -244,6 +235,14 @@ hplot <- function(groups, method){
 
 ###  big df
 
+```{r}
+hplot(old, "Fossil") + 
+  ggtitle("Mesozoic Mammal Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank(),
+        panel.grid.major.y = element_blank())
+```
 
 
 ### Big Plot
@@ -326,3 +325,6 @@ wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
 ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
 ```
+
+# Black and White Plot
+

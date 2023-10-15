@@ -8,6 +8,8 @@ This script pulls the `Master_Data` from the google drive folder, wrangles it to
 
 This script INCLUDES the fossil data, and scales all the data, extant and extinct, together. This way the two spreadsheets can be easily used when needed. 
 
+Also the `var_complete` and `var_missing` lists are created at the bottom
+
 ## Packages
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
@@ -223,5 +225,24 @@ dat2 <- bind_rows(dat, fdat) %>%
 dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master.csv"))
 
 dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master.csv"))
+```
+
+# Var Compete and Missing
+Measurements with missing values or complete. 
+Splitting up by measurement type as well.
+
+```{r}
+var_complete <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw") %>% write_rds(here("Data", "var_complete.Rds"))
+
+var_missing <- c("MANUS2", "MANUS3", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "Pipl", "lsPipl") %>% write_rds(here("Data", "var_missing.Rds"))
+
+var_complete_linear <- c("log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw") %>% write_rds(here("Data", "var_complete_linear.Rds"))
+
+var_missing_linear <- c( "Ipl",  "Pppl", "Mtl",  "Ppl", "Mcl",  "Tpw", "Isl", "Il", "Pel", "Hpw",  "Mcw",  "Ppw",  "Cl", "Pipl") %>% write_rds(here("Data", "var_missing_linear.Rds"))
+
+var_complete_ratio <- c("SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw") %>% write_rds(here("Data", "var_complete_ratio.Rds"))
+
+var_missing_ratio <- c("MANUS2", "MANUS3",  "PES",  "MANUS", "PRTI",  "HPI",  "MRI", "PES2", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl") %>% write_rds(here("Data", "var_missing_ratio.Rds"))
+
 ```
 

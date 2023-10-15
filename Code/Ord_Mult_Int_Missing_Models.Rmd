@@ -15,7 +15,7 @@ knitr::opts_chunk$set(warning = FALSE)
 ### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggpattern, magick)
 
 options(brms.backend = "cmdstanr")
 
@@ -345,7 +345,18 @@ Loading our list of log(Mass) models and selecting the ones for which we have fo
 ```{r}
 #list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
 #purrr keep_at is great!
-list_b2 <- lst(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11)
+list_b2 <- lst(read_rds(here("Data","O_lm_multi_1.Rds")),
+               read_rds(here("Data","O_lm_multi_2.Rds")),
+               read_rds(here("Data","O_lm_multi_3.Rds")),
+               read_rds(here("Data","O_lm_multi_4.Rds")),
+               read_rds(here("Data","O_lm_multi_5.Rds")),
+               read_rds(here("Data","O_lm_multi_6.Rds")),
+               read_rds(here("Data","O_lm_multi_7.Rds")),
+               read_rds(here("Data","O_lm_multi_8.Rds")),
+               read_rds(here("Data","O_lm_multi_9.Rds")),
+               read_rds(here("Data","O_lm_multi_10.Rds")),
+               read_rds(here("Data","O_lm_multi_11.Rds")))
+
 ```
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
 
@@ -375,7 +386,7 @@ model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))  
 ```{r}
 ## Full Predictions
 
-d <- mod1 %>% 
+d <- read_rds(here("Data","O_lm_multi_1.Rds")) %>% 
     add_epred_draws(newdata = model_dat, 
                     resp = "LocOrd2",
                     value = "Prob_of_Climbing",
@@ -412,7 +423,7 @@ pred_df_ext_full <- d %>% rownames_to_column('id') %>%
     TRUE ~ "Ground"
   ))
 
-d <- mod1 %>% 
+d <- read_rds(here("Data","O_lm_multi_1.Rds")) %>% 
     add_epred_draws(newdata = model_dat, 
                     resp = "LocOrd2",
                     value = "Prob_of_Climbing",
@@ -492,31 +503,31 @@ pred_ext <- function(mod, dat){
 }
 
 
-df1 <- pred_ext(mod1, fdat %>% filter(Genus_species %in% c('Jeholbaatar_kielanae', 'Plesiadapis_cookei')))
+df1 <- pred_ext(read_rds(here("Data","O_lm_multi_1.Rds")), fdat %>% filter(Genus_species %in% c('Jeholbaatar_kielanae', 'Plesiadapis_cookei')))
 
-df2 <- pred_ext(mod2, fdat %>% filter(Genus_species %in% c('Eomaia_scansoria', 'Sinodelphys_szalayi')))
+df2 <- pred_ext(read_rds(here("Data","O_lm_multi_2.Rds")), fdat %>% filter(Genus_species %in% c('Eomaia_scansoria', 'Sinodelphys_szalayi')))
 
-df3 <- pred_ext( mod3, fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
+df3 <- pred_ext( read_rds(here("Data","O_lm_multi_3.Rds")), fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
 
-df4 <- pred_ext(mod4, fdat %>% filter(Genus_species %in% c('Rugosodon_eurasiaticus')))
+df4 <- pred_ext(read_rds(here("Data","O_lm_multi_4.Rds")), fdat %>% filter(Genus_species %in% c('Rugosodon_eurasiaticus')))
 
-df5 <- pred_ext(mod5, fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi')) %>% 
+df5 <- pred_ext(read_rds(here("Data","O_lm_multi_5.Rds")), fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi')) %>% 
                   select(-Specimen_Num) %>% 
                   mutate(Specimen_Num = "mean_values") %>%
                   group_by(Genus_species, Specimen_Num) %>% 
                   summarise_at(14:93, mean, na.rm = T))
 
-df6 <- pred_ext(mod6, fdat %>% filter(Genus_species %in% c('Ptilodus_kummae')))
+df6 <- pred_ext(read_rds(here("Data","O_lm_multi_6.Rds")), fdat %>% filter(Genus_species %in% c('Ptilodus_kummae')))
 
-df7 <- pred_ext(mod7, fdat %>% filter(Genus_species %in% c('Ignacius_clarkforkensis')))
+df7 <- pred_ext(read_rds(here("Data","O_lm_multi_7.Rds")), fdat %>% filter(Genus_species %in% c('Ignacius_clarkforkensis')))
 
-df8 <- pred_ext(mod8, fdat %>% filter(Genus_species %in% c('Ambolestes_zhoui')))
+df8 <- pred_ext(read_rds(here("Data","O_lm_multi_8.Rds")), fdat %>% filter(Genus_species %in% c('Ambolestes_zhoui')))
 
-df9 <- pred_ext(mod9, fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
+df9 <- pred_ext(read_rds(here("Data","O_lm_multi_9.Rds")), fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
 
-df10 <- pred_ext(mod10, fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni')))
+df10 <- pred_ext(read_rds(here("Data","O_lm_multi_10.Rds")), fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni')))
 
-df11 <- pred_ext(mod11, fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
+df11 <- pred_ext(read_rds(here("Data","O_lm_multi_11.Rds")), fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
 
 pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>%  mutate(method = "Fossil",
          substrate = NA)
@@ -533,7 +544,7 @@ pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% #filter(va
   mutate(var = "combined") %>% 
   write_csv(here("Data", "Ord_Multiple_Predictions.csv"))
 
-
+pred_all <- read_csv(here("Data", "Ord_Multiple_Predictions.csv"))
 ```
 
 # Whole Shebang  
@@ -543,6 +554,8 @@ d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
 d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
 
 d4 <- c('#770194', '#1981db', "#2abb9c", "#79bc23")
+
+d4 <- c(P4 = '#770194', P3 = '#1981db', P2 = "#2abb9c", P1 = '#79bc23')
 
 p1 <- pred_all %>%  
   #unite("specimen", Genus_species, sep = " ") %>% 
@@ -602,7 +615,8 @@ hplot <- function(groups, method){
   group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
   ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
   geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
-  scale_fill_manual(values = rev(d4)) + 
+  scale_fill_manual(values = rev(d4)) +
+
   labs(y = "", title = "fossil", x = 'probability') +
   theme_classic() +
   theme( panel.border = element_blank(),
@@ -645,7 +659,7 @@ t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(g
 
 t3
 
-ggsave(here("Plots", "Predict_Ord_Mult_All.pdf"), height = 11, width = 8)
+ggsave(here("Plots", "Predict_Ord_Mult_All.pdf"), height = 11, width = 10)
 
 ```
 
@@ -686,4 +700,123 @@ ggsave(here("Plots", "Predict_Bin_Mult_Extant2.pdf"), height = 6, width = 13)
 wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
 ggsave(here("Plots", "Predict_Bin_Mult_All.pdf"), height = 16, width = 13)
+```
+
+
+# Big Plot B&W
+
+```{r}
+
+hplot <- function(groups, method){
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n)) + 
+  geom_bar_pattern(stat = 'identity',
+    aes(y =Genus_species , x = n, pattern_type = max_rank),
+    fill            = 'white',
+    colour          = 'black', 
+    pattern_density = 1, 
+    pattern_fill    = 'black',
+    pattern = 'magick',
+    pattern_colour  = 'black',
+    pattern_key_scale_factor = 1.5
+  ) +
+    scale_pattern_type_discrete(choices = c('vertical2', 'gray40', 'hs_fdiagonal', 'crosshatch')) +
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))   
+          
+}
+
+```
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") 
+
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
+
+
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
+
+t3
+
+ggsave(here("Plots", "Predict_Ord_Mult_All_BW1.pdf"), height = 11, width = 10)
+
+```
+
+
+# Big Plot B&W 2
+
+```{r}
+
+hplot <- function(groups, method){
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar( stat = 'identity', alpha = 0.8, position = position_fill(reverse = TRUE)) +
+    scale_fill_grey(start = 0.8, end = 0.2) +
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))   
+          
+}
+
+```
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") 
+
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
+
+
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
+
+t3
+
+ggsave(here("Plots", "Predict_Ord_Mult_All_BW2.pdf"), height = 11, width = 10)
+
 ```

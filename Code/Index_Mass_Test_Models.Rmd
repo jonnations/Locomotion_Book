@@ -21,8 +21,6 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
 here::i_am("README.md")
 here()
 
-var_complete <- read_rds(here("Data", "var_complete.Rds"))
-var_missing <- read_rds(here("Data", "var_missing.Rds"))
 
 source(here("Code","Name_Change.R"))
 ```
@@ -62,8 +60,8 @@ var_missing <- read_rds(here("Data", "var_missing.Rds"))
 ```
 
 ```{r}
-var_complete <- var_complete[c(1, 24:35)]
-var_missing <- var_missing[c(22:34, 36)]
+var_complete <- var_complete[c(1, 14:23)]
+var_missing <- var_missing[c(1:2,4,7,10,16,18,20)]
 ```
 
 The percentages are stored in the df `Missing_Data_Percents.csv`
@@ -154,7 +152,7 @@ for(i in var_missing){
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_LSR_gm_mods.Rds"))
+list_b_gm %>% write_rds(here("Data","B_Ind_gm_mods.Rds"))
 ```
 
 
@@ -245,7 +243,7 @@ for(i in var_missing){
                          ) 
 }
 
-list_b_nm %>% write_rds(here("Data","B_LSR_NOMASS_mods.Rds"))
+list_b_nm %>% write_rds(here("Data","B_Ind_NOMASS_mods.Rds"))
 ```
 
 # Fit GM NoInt Models
@@ -333,7 +331,7 @@ for(i in var_missing){
                          ) 
 }
 
-list_b_gm %>% write_rds(here("Data","B_LSR_gmNoInt_mods.Rds"))
+list_b_gm %>% write_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))
 
 ```
 
@@ -343,9 +341,9 @@ list_b_gm %>% write_rds(here("Data","B_LSR_gmNoInt_mods.Rds"))
 pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes, ggstar)
 
 
-list_b_gm <- read_rds(here("Data","B_LSR_gmNoInt_mods.Rds"))
-list_b_nm <- read_rds(here("Data","B_LSR_NOMASS_mods.Rds"))
-list_b_igm <- read_rds(here("Data","B_LSR_gm_mods.Rds"))
+list_b_gm <- read_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))
+list_b_nm <- read_rds(here("Data","B_Ind_NOMASS_mods.Rds"))
+list_b_igm <- read_rds(here("Data","B_Ind_gm_mods.Rds"))
 ```
 
 
@@ -367,36 +365,34 @@ cln3 <- function(df) as_draws_df(df)[16] %>% gather(var, val) %>%
   mutate(#val = inv_logit_scaled(val),
          var = names(as_draws_df(df)[16]))
 
-#log_shape = c("lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl")
-
 ```
 
 ```{r message = FALSE, warning=FALSE}
 # Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
-lms <- map(list_b_igm[2:13], cln) %>% 
+lms <- map(list_b_igm[2:11], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
-lms2 <- map(list_b_igm[14:27], cln2) %>% 
+lms2 <- map(list_b_igm[12:19], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
 
 lms_int <- lms %>% bind_rows(lms2) %>% 
   mutate(type = "GM_Interation") 
 rm(lms, lms2)
 
-lms <- map(list_b_nm[2:13], cln) %>% 
+lms <- map(list_b_nm[2:11], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
-lms2 <- map(list_b_nm[14:27], cln3) %>% 
+lms2 <- map(list_b_nm[12:19], cln3) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
 
 lms_no <- lms %>% bind_rows(lms2) %>% 
   mutate(type = "No_GM") 
 rm(lms, lms2)
 
-lms <- map(list_b_gm[2:13], cln) %>% 
+lms <- map(list_b_gm[2:11], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
 
-lms2 <- map(list_b_gm[14:27], cln2) %>% 
+lms2 <- map(list_b_gm[12:19], cln2) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
 
 lms_gm <- lms %>% bind_rows(lms2) %>% 
@@ -427,5 +423,208 @@ lms_gm %>%
   theme(strip.background = element_blank(),
         legend.position="none")
 
-ggsave(here("Plots", "Bin_Gm_Compare_plot.pdf"))
+ggsave(here("Plots", "Bin_Index_Mass_Test_Compare.pdf"))
 ```
+
+# Prediction Accuracy
+
+### Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+#purrr keep_at is great!
+pred_vars <- c(var_complete[2:11], var_missing)
+
+list_b_gm  <- read_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))  %>% keep_at(pred_vars)
+list_b_nm  <- read_rds(here("Data","B_Ind_NOMASS_mods.Rds")) %>% keep_at(pred_vars)
+list_b_igm <- read_rds(here("Data","B_Ind_gm_mods.Rds")) %>% keep_at(pred_vars)
+
+
+dgm <- as.data.frame(names(list_b_gm)) 
+colnames(dgm) <- "var"
+
+dnm <- as.data.frame(names(list_b_nm)) 
+colnames(dnm) <- "var"
+
+digm <- as.data.frame(names(list_b_igm)) 
+colnames(digm) <- "var"
+
+
+```
+
+Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
+## Fossil Functions
+```{r}
+colz <- c("Genus_species", "log_Mass", names(list_b_gm), "Specimen_Num")
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+fd <- fdat %>% select(all_of(colz))
+
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+
+```
+
+
+```{r}
+#WITH PHYLO
+bin_pred_phy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species
+        ) #%>% 
+  #summarise(accuracy_phy = round((sum(dif == 0)/427) * 100, digits = 1))
+  return(d2)
+}
+
+
+bin_pred_phy_fn <- function(df){
+  map(df, ~bin_pred_phy(.x)) %>% bind_rows()
+}
+
+
+## NO PHYLO
+bin_pred_nophy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = NA, resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_nophy_fn <- function(df){
+  map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
+}
+
+# Order and Family
+
+# Phy is the same (all group_levels)
+
+## NO PHYLO is different
+bin_pred_tax_nophy <- function(model){
+  set.seed(124)
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = ~ (1|Order) + (1|Family), resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_tax_nophy_fn <- function(df){
+  map(df, ~bin_pred_tax_nophy(.x)) %>% bind_rows()
+}
+
+```
+
+```{r}
+
+pred1 <- map(1, ~bin_pred_phy_fn(list_b_gm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dgm$var, each = 427),
+         method = 'phy',
+         mass = 'gm')
+
+pred2 <- map(1, ~bin_pred_nophy_fn(list_b_gm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dgm$var, each = 427),
+         method = 'no_phy',
+         mass = 'gm')
+
+
+pred3 <- map(1, ~bin_pred_phy_fn(list_b_nm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dnm$var, each = 427),
+         method = 'phy',
+         mass = 'no_mass')
+
+pred4 <- map(1, ~bin_pred_nophy_fn(list_b_nm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dnm$var, each = 427),
+         method = 'no_phy',
+         mass = 'no_mass')
+
+pred5 <- map(1, ~bin_pred_phy_fn(list_b_igm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(digm$var, each = 427),
+         method = 'phy',
+         mass = 'gm_int')
+
+pred6 <- map(1, ~bin_pred_tax_nophy_fn(list_b_igm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(digm$var, each = 427),
+         method = 'no_phy',
+         mass = 'gm_int')
+
+preds <- bind_rows(pred1, pred2, 
+                   pred3, pred4, 
+                   pred5, pred6) %>%
+  write_csv(here("Data", "test_extant_predictions.csv"))
+preds <- read_csv(here("Data", "test_extant_predictions.csv"))
+#This is the full pred df from the `Binary_Prediction_Accuracy.Rmd` script
+#preds <- read_csv(here("Data", "extant_predictions.csv"))
+```
+
+
+## Accuracy
+
+```{r}
+accuracy <- preds %>% 
+  group_by(method, var, mass) %>%  
+  filter(method == "no_phy") %>% 
+  summarise(accuracy = round((sum(dif == 0)/427) * 100, 
+                             digits = 1)) %>% 
+  select(var, accuracy, method, mass) %>% 
+  #filter(#accuracy > 70,
+  #       method %in% c('no_phy', 'no_phy_int', 'no_phy_tax')
+  #       ) %>% 
+  arrange(desc(accuracy)) 
+ #arrange(mass, desc(accuracy)) 
+
+
+accuracy %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
+```
+
