@@ -1,12 +1,12 @@
 ---
 title: "Predicting Binary Climbing"
-output: html_notebook
+#output: html_notebook
 ---
 
 
 # Predicting climbing from fossil data:
 
-Take model lists, then use them one by one to predict climbing in the fossil taxa.
+Take model lists, then use them one by one to predict climbing in the fossil taxa. Then run predictions using the "combined" models (with multiple predictors) and add these to the individual measurement predictions.
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
 pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
@@ -40,11 +40,8 @@ fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
 #variables to do fossil predictions with
 pred_vars <- fdat_cln[c(9:84)]
 
-#species in dataset
-spp_obs <- dat$Taxon_Upham_style %>% unique()
-
-#Color palette
-pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+#High accuracy variables
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "combined")
 ```
 
 ### Load & Subset Models
@@ -52,7 +49,7 @@ pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1e
 Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
 
 ```{r}
-list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
 #purrr keep_at is great!
 list_b2 <- list_b_lm %>% keep_at(pred_vars)
 
@@ -62,7 +59,7 @@ rm(list_b_lm)
 ```
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
 
-# Predictions  
+# Individual Predictions  
 
 ## Fossil Functions
 ```{r}
@@ -84,12 +81,12 @@ nnn <- function(mod, nm){
 
 ```
 
-# Extant Functions
+## Extant Functions
 
 ```{r}
 extant_climb <- c("Caluromys_derbianus", "Tamiasciurus_douglasii","Tupaia_glis", "Cynocephalus_volans", "Glaucomys_sabrinus")
 
-extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris", "Sorex_trowbridgii", "Thomomys_bottae", "Monodelphis_domestica")
+extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris",     "Sorex_trowbridgii", "Thomomys_bottae", "Monodelphis_domestica")
 
 
 old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
@@ -129,19 +126,9 @@ nnn3 <- function(mod, nm){
 
 ```
 
-### Plot helpers
+High accuracy variables
 ```{r}
-#var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", #"Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", #"Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
-##just the "sigs"
-#var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", #"Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-## just the really important sigs
-#var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2")
-##pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
-##with the mean probability
-#var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", #"Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
-
-var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl")
-
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "combined")
 ```
 
 
@@ -149,10 +136,9 @@ var_acc = c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', '
 nm <- names(list_b2)
 
 pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
-  write_csv(here("Data", "Fossil_Predictions.csv")) %>% 
+  write_csv(here("Data", "Fossil_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
          substrate = NA)
-
 
 pred_df_ext_full <- map2(list_b2, nm, ~nnn2(.x, .y)) %>% 
   bind_rows() %>% 
@@ -170,37 +156,134 @@ pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>%
     TRUE ~ "Ground"
   ))
 
-
 pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_acc) %>% 
   mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
   #THIS IS AVERAGING PER SPECIES
   group_by(substrate, method, var, Genus_species, draw) %>% 
   summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
-  write_csv(here("Data", "All_Predictions.csv"))
-```
-## Add means to the plots?
-Isn't really a good idea because there is uneven sampling across measurements
-```{r}
-#meandf <- pred_all %>% group_by(substrate, method, Genus_species, draw) %>% 
-#  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% 
-#  ungroup() %>% 
-#  mutate(var = "Mean")
-#
-#pred_all <- bind_rows(pred_all, meandf)
+  write_csv(here("Data", "Binary_Preds.csv"))
+
+#pred_all <- read_csv(here("Data", "Binary_Preds.csv"))
 ```
 
+# Combined Predictions
+
+This is similar to above, but each fossil requires a different model
+
+## Extant Predictions
+
+```{r}
+pred_df_ext_full <- mod1 %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NULL) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+  mutate(method = "Full",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+    
+
+pred_df_ext_fos <- mod1 %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+  mutate(method = "Fossil",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+```
+
+## Extinct Predictions
+
+```{r}
+pred_ext <- function(mod, dat) {
+  {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+  mutate(method = "Fossil",
+         substrate = NA)
+}
+
+
+df1 <- pred_ext(mod1, fdat %>% filter(Genus_species %in% c('Jeholbaatar_kielanae', 'Plesiadapis_cookei')))
+
+df2 <- pred_ext(mod2, fdat %>% filter(Genus_species %in% c('Eomaia_scansoria', 'Sinodelphys_szalayi')))
+
+df3 <- pred_ext( mod3, fdat %>% filter(Genus_species %in% c('Ambolestes_zhoui')))
+
+df4 <- pred_ext(mod4, fdat %>% filter(Genus_species %in% c('Rugosodon_eurasiaticus')))
+
+df5 <- pred_ext(mod5, fdat %>% filter(Genus_species %in% c('Ignacius_clarkforkensis')))
+
+df6 <- pred_ext(mod6, fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
+
+df7 <- pred_ext(mod7, fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi')) %>% 
+                  select(-Specimen_Num) %>% 
+                  mutate(Specimen_Num = "mean_values") %>%
+                  group_by(Genus_species, Specimen_Num) %>% 
+                  summarise_at(14:93, mean, na.rm = T))
+
+df8 <- pred_ext(mod8, fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
+
+df9 <- pred_ext(mod9, fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
+
+df10 <- pred_ext(mod10, fdat %>% filter(Genus_species %in% c('Ptilodus_kummae')))
+
+df11 <- pred_ext(mod11, fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni')))
+
+pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>% mutate(var = 'combined')
+
+rm(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11)
+```
+
+## Combine all predictions
+
+```{r}
+
+pred_all2 <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% #filter(var %in% var_acc) %>% 
+  mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
+  #THIS IS AVERAGING PER SPECIES
+  group_by(substrate, method, Genus_species, draw) %>% 
+  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% mutate(var = "combined") %>% 
+  write_csv(here("Data", "Binary_Mult_Preds.csv"))
+
+read_csv(here("Data", "Binary_Preds.csv")) %>% bind_rows(pred_all2) %>% write_csv(here("Data", "Binary_Preds.csv"))
+
+```
 
 
 
 # Whole Shebang  
 
+```{r}
+pred_mult <- read_csv(here("Data","Binary_Preds.csv"))
+
+pred_all <-  bind_rows(pred_all, pred_mult)
+```
+
+
 
 ### function
 ```{r}
 # shading
-shades <- data.frame(xmin=seq(1.5,13-1.5, 2),
-                     xmax=seq(2.5,13+.5, 2),
-                     ymin=0, ymax=Inf)
+shades <- data.frame(xmin=seq(1.5,15-1.5, 2),
+                     xmax=seq(2.5,15+.5, 2),
+                     ymin=-Inf, ymax=Inf)
 
 hplot <- function(groups, method){
   pred_all %>% filter(Genus_species %in% {{groups}},
@@ -222,7 +305,9 @@ hplot <- function(groups, method){
                             xmax=xmax, 
                             ymin = ymin, 
                             ymax = ymax), 
+              vjust = -0.2,
               alpha = 0.125) +
+  scale_y_continuous(limits = c(0,1), expand = c(0.02, 0.02)) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
         panel.border = element_rect(colour = "grey40", fill=NA, size=0.7))
 }
@@ -231,6 +316,14 @@ hplot <- function(groups, method){
 
 ###  big df
 
+```{r}
+hplot(old, "Fossil") + 
+  ggtitle("Mesozoic Mammal Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank(),
+        panel.grid.major.y = element_blank())
+```
 
 
 ### Big Plot
@@ -259,7 +352,7 @@ t3 <- pl5 / pl6 /pl7
 
 t3
 
-ggsave(here("Plots", "Predict_Fossil.pdf"), height = 8, width = 10)
+ggsave(here("Plots", "Predict_Int_Fossil.pdf"), height = 8, width = 13)
 
 ```
 
@@ -296,14 +389,14 @@ t2 <- pl3 / pl4 + plot_layout(guides = "collect")
 
 wrap_plots(t1, t2, ncol = 1)
 
-ggsave(here("Plots", "Predict_Extant.pdf"), height = 10, width = 10)
+ggsave(here("Plots", "Predict_Int_Extant.pdf"), height = 10, width = 13)
 
 ```
 
 ```{r}
 pl2 / pl4 + plot_layout(guides = "collect")
 
-ggsave(here("Plots", "Predict_Extant2.pdf"), height = 6, width = 10)
+ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
 ```
 
 
@@ -311,6 +404,8 @@ ggsave(here("Plots", "Predict_Extant2.pdf"), height = 6, width = 10)
 ```{r}
 wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
-ggsave(here("Plots", "Predict_All.pdf"), height = 16, width = 10)
+ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
 ```
+
+# Black and White Plot
 

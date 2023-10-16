@@ -9,10 +9,20 @@ Investigation into the morphological signature of arboreality in (small) mammals
 2) Explore the relationship between the method of categorizing locomotion and the preferred morphological measurements. 
 3) Predict the locomotion of fossil species using the measurements with the highest predictive ability
 
+16 October: To Do
+Working through the project
 
-Questions to figure out
+[X] Run All Models in their final form
+  - `Binary_Mods.Rmd` and `Ordinal_Mods.Rmd`
+  
+[X] Run Multiple regression prediction Models
+  - `Binary_Mult_Mods.Rmd`
+  - `Ordinal_Mult_Mods.Rmd`
+  
+[] Do all predictions on final models
+  - add "combined" predictions into reg pred script
+  - predict all, including "combined"
 
-1- what do i do about mass? I think I will skip the interactions! It may make more sense to 
 
 ## Layout:
 

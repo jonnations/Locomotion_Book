@@ -60,10 +60,14 @@ A <- ape::vcv.phylo(tr, corr = TRUE)
 ## Model Fits
 I'm taking the list of present and missing variables from the `Binary_Mult_Mods.Rmd` script.
 
-```{r}
+### Model1
 
-ord_mod <-  bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(HPI) + mi(Ipl) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
-  
+#### J. kielanae
+#### P. cookei
+#### All Extant
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+ord_mod <-  bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(HPI) + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
   
 PES2_mod <- bf(PES2| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
 
@@ -79,177 +83,203 @@ HPI_mod <- bf(HPI| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + 
 
 Ipl_mod <- bf(Ipl| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
 
-m1_form <- ord_mod + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + set_rescor(FALSE)
-  
-pri <- prio(m1_form)
+Pipl_mod <- bf(Pipl| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
 
-mod1 <- brm(m1_form,
+m_form <- ord_mod + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
+  
+pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "student_t(5, 0, 0.6)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+mod1 <- brm(m_form,
                     data=dat,
                     refresh = 0,
-                    cores = 2,
+                    cores = 4,
                     data2 = list(A = A),
                     prior = pri,
                     seed = 145,
-                    control=list(max_treedepth=12)
+                    control=list(max_treedepth=15)
                )
-mod1 %>% write_rds(here("Data","O_lm_multi_1.Rds"))
 ```
 
 
-#### Model 2
-Jeholbaatar_kielanae, Plesiadapis_cookei
-no HPI
-```{r}
-ord_mod2 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+prio <- function(mod){
+  get_prior({{mod}},
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+}
+```
 
-m2_form <- ord_mod2 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + Ipl_mod + set_rescor(FALSE)
+
+### Model 2
+No HPI
+#### S. szalayi
+#### E. scansoria
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod2 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+
+m2_form <- ord_mod2 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
                     
 pri = prio(m2_form)
 
-mod2 <- brm(m2_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod2 <- brm(m2_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod2 %>% write_rds(here("Data","O_lm_multi_2.Rds"))
 ```
 
 
-#### Model 3 
-No HPI, Ul, OLI
-Dryomomys_szalayi
-```{r}
-ord_mod3 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Fl + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+## Model 3 
+No PES2, HPI, PES
+#### A. zhoui
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod3 <-  bf(Loc_Ord2 ~  mi(MANUS) +  mi(Ppl) + mi(MANUS2)  + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m3_form <- ord_mod3 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod +  Ipl_mod + set_rescor(FALSE)
+m3_form <- ord_mod3 +  MANUS_mod  + Ppl_mod + MANUS2_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
            
 pri = prio(m3_form)
 
-mod3 <- brm(m3_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod3 <- brm(m3_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod3 %>% write_rds(here("Data","O_lm_multi_3.Rds"))
 ```
 
-#### Model 4 
+##Model 4 
 no HPI, Ipl, MANUS2
-Rugosodon_eurasiaticus
-```{r}
-ord_mod4 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+#### R. eurasiaticus
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod4 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m4_form <- ord_mod4 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod  + set_rescor(FALSE)
+m4_form <- ord_mod4 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + Pipl_mod + set_rescor(FALSE)
             
 pri = prio(m4_form)
 
-mod4 <- brm(m4_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod4 <- brm(m4_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod4 %>% write_rds(here("Data","O_lm_multi_4.Rds"))
 ```
 
-#### Model 5 
-no MANUS, Ppl, MANUS2, Ipl
-Kryptobaatar_dashzevegi
-```{r}
-ord_mod5 <- bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + mi(HPI) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+## Model 5 
+no PES2, PES, Pipl
+#### I. clarkforkensis
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod5 <-  bf(Loc_Ord2 ~  mi(MANUS) +  mi(Ppl) + mi(MANUS2) + mi(HPI) + mi(Ipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m5_form <- ord_mod5 + PES2_mod +  PES_mod + HPI_mod  + set_rescor(FALSE)
+m5_form <- ord_mod5  + MANUS_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + set_rescor(FALSE)
            
 pri = prio(m5_form)
 
-mod5 <- brm(m5_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod5 <- brm(m5_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod5 %>% write_rds(here("Data","O_lm_multi_5.Rds"))
 ```
 
 
 #### Model 6 
-Ptilodus_kummae
-ONLY PES, PES2, and FL
-```{r}
-ord_mod6 <- bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + Fl + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+no HPI, OLI, Uol, Ul
+#### D. szalayi
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod6 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) +  mi(Ipl) + mi(Pipl) + Hl + Rl  + Fl  + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m6_form <- ord_mod6 + PES2_mod  + PES_mod + set_rescor(FALSE)
+m6_form <- ord_mod6 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
            
 pri = prio(m6_form)
 
-mod6 <- brm(m6_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod6 <- brm(m6_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod6 %>% write_rds(here("Data","O_lm_multi_6.Rds"))
 ```
 
+## Model 7
+#### K. dashzevegi
+no MANUS, Ppl, MANUS2, Ipl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod7 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + mi(HPI) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-#### Model 7
-Ignacius_clarkforkensis
-no pes or pes2
-```{r}
-ord_mod7 <- bf(Loc_Ord2 ~  mi(MANUS) + mi(HPI) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
-
-m7_form <- ord_mod7  + MANUS_mod + HPI_mod + Ppl_mod + MANUS2_mod +  Ipl_mod + set_rescor(FALSE)
+m7_form <- ord_mod7 + PES2_mod +  PES_mod  + HPI_mod  + Pipl_mod + set_rescor(FALSE)
          
 pri = prio(m7_form)
 
-mod7 <- brm(m7_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod7 <- brm(m7_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod7 %>% write_rds(here("Data","O_lm_multi_7.Rds"))
 ```
 
-#### Model 8
-Ambolestes_zhoui, Cokotherium_jiufotangensis
-no pes or pes2 or HPI
-```{r}
-ord_mod8 <- bf(Loc_Ord2 ~ mi(MANUS)  + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m8_form <- ord_mod8  + MANUS_mod  + Ppl_mod + MANUS2_mod +  Ipl_mod + set_rescor(FALSE)
-           
+## Model 8
+#### J. sinensis
+#### C. jiufotangensis
+no PES, HPI, PES2, Pipl, Fl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod8 <-  bf(Loc_Ord2 ~  mi(MANUS) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul + Uol + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m8_form <- ord_mod8 + MANUS_mod + Ppl_mod + MANUS2_mod + Ipl_mod + set_rescor(FALSE)
+         
 pri = prio(m8_form)
 
-mod8 <- brm(m8_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod8 <- brm(m8_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod8 %>% write_rds(here("Data","O_lm_multi_8.Rds"))
 ```
 
-#### Model 9
-Juramaia_sinensis
-no pes or pes2 or HPI or Fl
-```{r}
-ord_mod9 <- bf(Loc_Ord2 ~ mi(MANUS)  + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul  + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+## Model 9
+#### F. primaevus
+No PES2, PES, MANUS, Ppl, MANUS2, Pipl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod9 <-  bf(Loc_Ord2 ~  mi(HPI) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m9_form <- ord_mod9  + MANUS_mod  + Ppl_mod + MANUS2_mod +  Ipl_mod + set_rescor(FALSE)
+m9_form <- ord_mod9 +  HPI_mod + set_rescor(FALSE)
            
 pri = prio(m9_form)
 
-mod9 <- brm(m9_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod9 <- brm(m9_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod9 %>% write_rds(here("Data","O_lm_multi_9.Rds"))
 ```
 
+## Model 10
+#### P. kummae
+No HPI, MANUS, Ppl, Hl, OLI, MANUS2, Rl, Ipl, Uol, Ul
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod10 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + mi(Pipl) + Fl +  log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-#### Model 10
-Torrejonia_wilsoni
-only Ppl haha
-```{r}
-ord_mod10 <- bf(Loc_Ord2 ~  mi(Ppl) + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
-
-m10_form <- ord_mod10 + Ppl_mod + set_rescor(FALSE)
+m10_form <- ord_mod10 + PES2_mod +  PES_mod + Pipl_mod + set_rescor(FALSE)
            
 pri = prio(m10_form)
 
-mod10 <- brm(m10_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod10 <- brm(m10_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod10 %>% write_rds(here("Data","O_lm_multi_10.Rds"))
 ```
 
 
-#### Model 11
-Filikomys_primaevus
-No PES, PES2, MANUS, MANUS2, Ppl, or Ipl
-```{r}
-ord_mod11 <- bf(Loc_Ord2 ~ mi(HPI) + Hl + Rl + Ul  + OLI + Fl + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+## Model 11
+#### T. wilsoni
+only Ppl and Uol
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod11 <- bf(Loc_Ord2 ~  mi(Ppl) + Uol + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
 
-m11_form <- ord_mod11  + HPI_mod + set_rescor(FALSE)
-              
+m11_form <- ord_mod11 + Ppl_mod + set_rescor(FALSE)
+           
 pri = prio(m11_form)
 
-mod11 <- brm(m11_form, data=dat, refresh = 0, cores = 2, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=12)
+mod11 <- brm(m11_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
                )
-mod11 %>% write_rds(here("Data","O_lm_multi_11.Rds"))
 ```
+
+## Save Models
+```{r}
+list_o2 <- lst(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11) %>% write_rds(here("Data","O_lm_mods_multi.Rds"))
+```
+
 
 
 #####################################
