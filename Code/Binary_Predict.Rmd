@@ -266,8 +266,8 @@ pred_all2 <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_fos) %>% #filter(
   mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
   #THIS IS AVERAGING PER SPECIES
   group_by(substrate, method, Genus_species, draw) %>% 
-  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% mutate(var = "combined") %>% 
-  write_csv(here("Data", "Binary_Mult_Preds.csv"))
+  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% mutate(var = "combined") #%>% 
+  #write_csv(here("Data", "Binary_Mult_Preds.csv"))
 
 pred_all <- read_csv(here("Data", "Binary_Preds.csv")) %>% bind_rows(pred_all2) %>% write_csv(here("Data", "Binary_Preds.csv"))
 
@@ -293,17 +293,27 @@ hplot <- function(groups, method){
     filter(Genus_species %in% {{groups}},
                          method == {{method}}) %>% 
     mutate(var =  as.factor(var)) %>% 
+    mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
   ggplot(aes(y = Prob_of_Climbing, 
              x = fct_relevel(var,var_acc), 
+             #color = Genus_species,
+             shape = Genus_species,
              #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
+             )) +
+  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.35, color = "grey30") +
   stat_pointinterval(#.width = c(0.5, 0.68268),
-                     .width = c(0.5, 0.8),
-                     #linewidth = c(0.75, 0.5), 
-                     position = position_dodge(width = -.6)) + ylim(0,1) +
+                     #.width = c(0.5, 0.8),
+                     .width = 0.8,
+                     color = "grey15",
+                      linewidth = 1.7,
+                     position = position_dodge(width = -.8)#,
+                     #aes(shape = Genus_species, fill = Genus_species)
+                     ) + 
+    ylim(0,1) +
     labs(x = "", y = "Probability of Climbing") +
-  scale_color_manual(values = pal) + theme_pander(gM = F) + 
+  #scale_color_manual(values = pal) 
+    theme_pander(gM = F) + 
+    scale_shape_manual(values = c(1, 15, 17, 19, 8)) +
     geom_rect(inherit.aes = F, 
               data = shades, 
               mapping = aes(xmin=xmin, 
@@ -314,7 +324,10 @@ hplot <- function(groups, method){
               alpha = 0.125) +
   scale_y_continuous(limits = c(0,1), expand = c(0.02, 0.02)) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7))
+        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7),
+        legend.text = element_text(face = "italic"),
+        legend.title=element_blank()) +
+    guides(shape = guide_legend(override.aes = list(size=8)))
 }
 
 ```
@@ -341,10 +354,10 @@ pl5 <- hplot(old, "Fossil") +
         panel.grid.major.y = element_blank())
 
 pl6 <- hplot(multi, "Fossil") + 
-  ggtitle("Multituberculate Predicitons") + 
+  ggtitle("Multituberculate Predictions") + 
   theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
+        plot.margin = unit(c(0, 0, 0, 0), "lines")) +
+  labs(y = "Probability", x = "")
 
 pl7 <- hplot(primate, "Fossil") + 
   ggtitle("Primate Predicitons") + 
@@ -364,25 +377,25 @@ ggsave(here("Plots", "Bin_Pred_Fossil.pdf"), height = 8, width = 13)
 
 ```{r}
 pl1 <- hplot(extant_climb, "Full") + 
-  ggtitle("Extant Climb Full Predictions") + 
+  ggtitle("Climbing species predictions") + 
   theme(axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
 
 pl2 <- hplot(extant_climb, "Fossil") + 
-  ggtitle("Extant Climb Fossil") + 
+  ggtitle("Climbing species predictions without phylogenetic information") + 
   theme(axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
 
 pl3 <- hplot(extant_ground, "Full") + 
-  ggtitle("Extant Ground Full Predictions") + 
+  ggtitle("Non-climbing species predictions") + 
   theme(axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
 
 pl4 <- hplot(extant_ground, "Fossil") + 
-  ggtitle("Extant Ground Fossil") + 
+  ggtitle("Non-climbing species predictions without phylogenetic information") + 
   theme(#axis.text.x = element_blank(),
         axis.title.y = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),)

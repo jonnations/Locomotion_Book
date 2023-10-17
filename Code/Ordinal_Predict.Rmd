@@ -1,15 +1,16 @@
 ---
 title: "Predicting Ordinal Climbing"
-output: html_notebook
+#output: html_notebook
 ---
-
 
 # Predicting climbing from fossil data:
 
-Take model lists, then use them one by one to predict climbing in the fossil taxa.
+Take model lists, then use them one by one to predict climbing in the fossil taxa. Then run predictions using the "combined" models (with multiple predictors) and add these to the individual measurement predictions.
+
+
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
+pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes, furrr)
 
 options(brms.backend = "cmdstanr")
 
@@ -27,177 +28,103 @@ source(here("Code","Name_Change.R"))
 
 ```
 
-### Load Extant data  
-
-```{r message = FALSE, warning=FALSE}
-dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
-  select(!NOTES) %>% 
-# Recode Ordinal Rankings
-  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
-                             Loc_mode_Ordinal == "A"  ~ "A",
-                             Loc_mode_Ordinal == "Sc" ~ "Sc",
-                             Loc_mode_Ordinal == "T"  ~ "T",
-                             Loc_mode_Ordinal == "Is" ~ "Is",
-                             Loc_mode_Ordinal == "Sf" ~ "Sf",
-                             Loc_mode_Ordinal == "Ss" ~ "Ss",
-                             TRUE ~ NA),
-         Loc_Ord = as.ordered(Loc_Ord),
-         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
-         # Combining the Intersurface and Semifossorial
-         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
-                              Loc_mode_Ordinal == "A" ~ "A",
-                              Loc_mode_Ordinal == "Sc" ~ "Sc",
-                              Loc_mode_Ordinal == "T" ~ "T",
-                              Loc_mode_Ordinal == "Is" ~ "B",
-                              Loc_mode_Ordinal == "Sf" ~ "B",
-                              Loc_mode_Ordinal == "Ss" ~ "B",
-                             TRUE ~ NA),
-         Loc_Ord2 = as.ordered(Loc_Ord2),
-         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
-         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
-                             Loc_mode_Bindary == "Tree" ~ 1,
-                             TRUE ~ NA
-                             ),
-        # Loc_bin = as.factor(Loc_bin),
-         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
-         log_Mass = log(Mass_grams)) %>% 
-    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
-  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
-  relocate(Loc_Ord2, .after = Loc_Ord) %>%
-  relocate(log_Mass, .before = Skl) %>% 
-#################
-#Calculate Indices!
-#################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
-         HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
-         OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
-         MANUS = Ppl / Mcl,        # MANUS index
-         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
-         PES = Pppl / Mtl,         # PES INdex
-         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
-         ) %>% 
-    # geometric mean
-  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
-  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
-  relocate(gm, .before = log_Mass) %>% 
-  mutate_at(vars(19:73), log) %>% 
-  mutate(Fos = FALSE)
-
-spp_obs <- dat$Taxon_Upham_style %>% unique()
-
-pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
-```
-
-### Load Fossil Data  
+### Load Data
 
 ```{r}
-fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8HfhcJNJ-jtYK10qlsdLi4i38tVc/edit#gid=0", na = c("NA", "?", "", "NULL")) %>% 
-  # Selecting only the lines with data
-  # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
-  slice (1:9) %>% 
-  select(!NOTES) %>% 
-  mutate(log_Mass = log(Mass_grams)) %>% 
-#################
-#Calculate Indices!
-#################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
-         HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
-         OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
-         MANUS = Ppl / Mcl,        # MANUS index
-         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
-         PES = Pppl / Mtl,         # PES INdex
-         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
-         ) %>% 
-  mutate_at(vars(14:68), log) %>% 
-  mutate(Fos = TRUE)
-```
+dat <- read_csv(here("Data", "Extant_Master.csv"))
 
-### Combine, scale, and split
-
-```{r}
-dat2 <- bind_rows(dat, fdat) %>% 
-  mutate_at(vars(17:95), scale2)
-
-dat <- dat2 %>% filter(Fos == FALSE) %>% select(!Fos)
-
-fdat <- dat2 %>% filter(Fos == TRUE) %>% select(!Fos)
-
-rm(dat2)
+fdat <- read_csv(here("Data", "Fossil_Master.csv")) %>% 
+  group_by(Genus_species) %>%  
+   summarise_if(is.numeric, mean, na.rm = T)
 
 fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
 
-pred_vars <- fdat_cln[c(13:79)]
+#variables to do fossil predictions with
+pred_vars <- fdat_cln[c(8:78)]
+
 ```
 
 ### Load & Subset Models
 
-Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements.
 
 ```{r}
-list_o_lm <- read_rds(here("Data","O_lm_mods_mis.Rds"))
+list_o_lm1 <- read_rds(here("Data","O_lm_mods_mis.Rds"))
+list_o_lm2 <- read_rds(here("Data","O_ratio_mods_mis.Rds"))
 #purrr keep_at is great!
-list_o2 <- list_o_lm %>% keep_at(pred_vars)
+list_o2 <- append(list_o_lm1, list_o_lm2)  %>% keep_at(pred_vars)
 
 names(list_o2)
 
-rm(list_o_lm)
+rm(list_o_lm1, list_o_lm2)
 ```
+
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
-# Predictions  
 
-## Fossil Functions
+# Predictions
+
+## Data & Lists
 ```{r}
-colz <- c("Genus_species", "log_Mass", names(list_o2), "Specimen_Num")
+# Taxon Lists
+extant_climb <- c("Caluromys_derbianus", "Tamiasciurus_douglasii","Tupaia_glis", "Cynocephalus_volans", "Glaucomys_sabrinus")
 
-fd <- fdat %>% select(colz)
+extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris",     "Sorex_trowbridgii", "Thomomys_bottae", "Monodelphis_domestica")
 
+old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
+
+multi <- c("Rugosodon_eurasiaticus", "Jeholbaatar_kielanae", "Filikomys_primaevus", "Ptilodus_kummae", "Kryptobaatar_dashzevegi")
+
+primate <- c("Plesiadapis_cookei", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
+
+## Binary important vars
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul")
+
+# Fossil Data
+
+# Extant Data
+
+model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))
+
+model_dat_avg <- model_dat %>% 
+  group_by(Genus_species, Loc_Ord2, Taxon_Upham_style) %>%
+  summarise(across(gm:lsCl, \(x) mean(x, na.rm = TRUE))) %>% 
+  ungroup()
+#make into list of 45 dataframes
+
+model_dat <- lapply(1:43, function(x) model_dat)
+model_dat_avg <-  lapply(1:43, function(x) model_dat_avg)
+
+# Columns to select
+sel_cols <- c('Genus_species', 'Specimen_Num', '.draw', '.category', 'Prob_of_Climbing')
+
+sel_cols <- lapply(1:43, function(x) sel_cols)
+
+sel_cols_a <- c('Genus_species','.draw', '.category', 'Prob_of_Climbing')
+sel_cols_a <- lapply(1:43, function(x) sel_cols_a)
+
+```
+
+
+##Functions
+
+```{r}
+# FOSSIL
 nnn <- function(mod, nm){
-  {{mod}} %>% 
+ d <-  {{mod}} %>% 
     add_epred_draws(newdata = fdat, 
                     resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
                     allow_new_levels = TRUE, 
-                    re_formula = NA,
-                    ndraws = 100) %>% 
+                    re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, .draw, .category, .epred) %>% 
+  select(Genus_species, .draw, .category, Prob_of_Climbing) %>% 
     arrange(Genus_species, .draw, .category) %>% 
-    pivot_wider(names_from = .category, values_from = .epred) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
     mutate(.draw = as.factor(.draw)) %>% 
     rename(P1 = "A",
            P2 = "Sc",
@@ -205,70 +132,125 @@ nnn <- function(mod, nm){
            P4 = "B") %>% 
     mutate(var = {{nm}},
            wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+ 
+ d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
 }
 
-```
-
-# Extant Functions
-
-```{r}
-model_dat <- dat %>% filter(Genus_species %in% c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica"))
-
-nnn2 <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = model_dat, 
+# Full Predictions
+nnn2 <- function(mod, nm, dat, columns){
+  d <- {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
                     resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NULL) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select({{columns}}) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(var = {{nm}},
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
   
+   d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
 }
 
-nnn3 <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = model_dat, 
+# Fossil Predictions
+
+nnn3 <- function(mod, nm, dat, columns){
+ d <- {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
                     resp = "LocOrd2",
                     value = "Prob_of_Climbing",
                     #allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select({{columns}}) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
     mutate(var = {{nm}},
            wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+  d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
 }
 
-
-extant_climb <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis")
-
-extant_ground <- c("Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica")
-
-extant <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica")
-
-
-old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
-
-new <- c("Filikomys_primaevus", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
 ```
 
+## Predict
 
+Decided to do the predictions on the averages. I can't average over the ordinal predictors easily. The non-averaged code is hashed out below. 
 
 ```{r}
 nm <- names(list_o2)
 
-pred_df <- map2(list_o2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
-  write_csv(here("Data", "Ord_Fossil_Predictions.csv")) %>% 
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore")
+plan(multisession, workers = 6)
+
+
+pred_df <- future_map2(list_o2, nm, ~nnn(.x, .y)) %>% bind_rows()  %>% 
+  #write_csv(here("Data", "Fossil_Ord_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
-        substrate = NA)
-
-pred_df %>% group_by(var, Genus_species) %>% 
-   summarise(wa_rank = mean(wa_rank)) %>% 
-  mutate(rounded_pred_rank = round(wa_rank, digits = 0)) 
+         substrate = NA)
 
 
-pred_df_ext_full <- map2(list_o2, nm, ~nnn2(.x, .y)) %>% 
+#pred_df_ext_full <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols), 
+#                             ~nnn2(..1, ..2, ..3, ..4)) %>% 
+#  bind_rows() %>% 
+#  mutate(method = "Full",
+#         substrate = case_when(
+#    Genus_species %in% extant_climb ~ "Climb",
+#    TRUE ~ "Ground"
+#  ))
+
+
+pred_df_ext_full_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a), 
+                             ~nnn2(..1, ..2, ..3, ..4)) %>% 
   bind_rows() %>% 
   mutate(method = "Full",
          substrate = case_when(
@@ -276,7 +258,19 @@ pred_df_ext_full <- map2(list_o2, nm, ~nnn2(.x, .y)) %>%
     TRUE ~ "Ground"
   ))
 
-pred_df_ext_fos <- map2(list_o2, nm, ~nnn3(.x, .y)) %>% 
+
+#pred_df_ext_fos <- future_pmap(list(list_o2, nm, model_dat, sel_cols), 
+#                             ~nnn3(..1, ..2, ..3, ..4)) %>% 
+#  bind_rows() %>% 
+#  mutate(method = "Fossil",
+#         substrate = case_when(
+#    Genus_species %in% extant_climb ~ "Climb",
+#    TRUE ~ "Ground"
+#  ))
+
+
+pred_df_ext_fos_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a), 
+                             ~nnn3(..1, ..2, ..3, ..4)) %>% 
   bind_rows() %>% 
   mutate(method = "Fossil",
          substrate = case_when(
@@ -285,113 +279,596 @@ pred_df_ext_fos <- map2(list_o2, nm, ~nnn3(.x, .y)) %>%
   ))
 
 
-pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_ord3) %>% 
+plan(sequential)
+
+#pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_acc) %>% 
+  #write_csv(here("Data", "Ordinal_Preds.csv")) 
+
+pred_all_avg <- bind_rows(pred_df_ext_full_avg, pred_df_ext_fos_avg, pred_df) %>% filter(var %in% var_acc) %>% 
+  write_csv(here("Data", "Ordinal_Preds.csv")) 
+
+rm(#pred_df_ext_full, pred_df_ext_fos, 
+   pred_df, pred_df_ext_full_avg, pred_df_ext_fos_avg)
+
+#pred_all <- read_csv(here("Data", "All_Ord_Int_Predictions.csv"))
+```
+
+
+# Combined Predictions
+
+```{r}
+list_o2m <- read_rds(here("Data", "O_lm_mods_multi.Rds"))
+
+model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))  %>%  group_by(Genus_species, Taxon_Upham_style) %>%  summarise_if(is.numeric, mean, na.rm = T)
+
+var_acc = c("PES2", "HPI", "PES", "MANUS", "Ppl",  "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "combined")
+```
+
+## Extant
+
+```{r}
+## Full Predictions
+
+d <- list_o2m$mod1 %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NULL) %>% 
+    as.data.frame() %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species',  '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_full <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  ) %>% mutate(method = "Full",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+d <- list_o2m$mod1 %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species', '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_fos <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id') %>% 
+  mutate(method = "Fossil",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+```
+
+
+## Extinct
+
+```{r}
+pred_ext <- function(mod, dat){
+ d <-  {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+  select(Genus_species,.draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+ 
+ d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
+}
+
+df1 <- pred_ext(list_o2m$mod1, fdat %>% filter(Genus_species %in% c('Jeholbaatar_kielanae', 'Plesiadapis_cookei')))
+
+df2 <- pred_ext(list_o2m$mod2, fdat %>% filter(Genus_species %in% c('Eomaia_scansoria', 'Sinodelphys_szalayi')))
+
+df3 <- pred_ext( list_o2m$mod3, fdat %>% filter(Genus_species %in% c('Ambolestes_zhoui')))
+
+df4 <- pred_ext(list_o2m$mod4, fdat %>% filter(Genus_species %in% c('Rugosodon_eurasiaticus')))
+
+df5 <- pred_ext(list_o2m$mod5, fdat %>% filter(Genus_species %in% c('Ignacius_clarkforkensis')))
+
+df6 <- pred_ext(list_o2m$mod6, fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
+
+df7 <- pred_ext(list_o2m$mod7, fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi'))) #%>% 
+#                  select(-Specimen_Num) %>% 
+#                  mutate(Specimen_Num = "mean_values") %>%
+#                  group_by(Genus_species, Specimen_Num) %>% 
+#                  summarise_at(14:93, mean, na.rm = T))
+#
+df8 <- pred_ext(list_o2m$mod8, fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
+
+df9 <- pred_ext(list_o2m$mod9, fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
+
+df10 <- pred_ext(list_o2m$mod10, fdat %>% filter(Genus_species %in% c('Ptilodus_kummae')))
+
+df11 <- pred_ext(list_o2m$mod11, fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni')))
+
+pred_fos <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>% mutate(var = 'combined')
+
+rm(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11)
+```
+
+
+```{r}
+
+pred_all2 <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_fos) %>% #filter(var %in% var_acc) %>% 
   mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
   #THIS IS AVERAGING PER SPECIES
-  group_by(substrate, method, var, Genus_species, draw) %>% 
-  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() %>% 
-  write_csv(here("Data", "Ord_All_Predictions.csv"))
+  #group_by(substrate, method, Genus_species, draw) %>% 
+  #summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() 
+  mutate(var = "combined") %>% select(!draw) %>% mutate(.draw = as.numeric(.draw),
+                                                        id = as.numeric(id))
+  #write_csv(here("Data", "Ord_Multiple_Predictions.csv"))
+
+pred_all <- read_csv(here("Data", "Ordinal_Preds.csv")) %>% bind_rows(pred_all2) %>% write_csv(here("Data", "Ordinal_Preds.csv"))
+
+rm(pred_all_avg, pred_all2, pred_df_ext_fos, pred_df_ext_full, pred_fos)
+
 ```
+
+# Plots
+
+## Percent Barplots
 
 ```{r}
-pred_df %>% filter(var %in% var_ord3) %>% group_by(var, Genus_species) %>% 
-   summarise(wa_rank = mean(wa_rank)) %>% 
-  mutate(rounded_pred_rank = round(wa_rank, digits = 0),
-         rounded_pred_rank = as.factor(rounded_pred_rank),
-         var = as.factor(var)) %>% 
-  ggplot(aes( x = fct_relevel(var,var_ord3), y = factor(Genus_species))) + 
-  geom_tile(aes(fill = fct_relevel(rounded_pred_rank, c("1", "2", "3")), width = 0.92, height = 0.92),
-            color = NA,
-            lwd = 1,
-            linetype = 1) +
-# scico::scale_fill_scico(palette = "lajolla", begin  = 0.15, end = 1,
-#                         limits=c(1,4),
-#                         breaks = seq(1,4, by = 0.25),
-#                         labels = c( "1", "", "", "", "2", "", "", "", "3", "", "","", "4"),
-                          #guide = guide_legend(byrow = TRUE, reverse=T, size = 2)
-                         # ) +
-  #labs(fill='Weighted\nDietary\nImportance\nScores\n') +
-  theme_minimal() +
-  coord_fixed(ratio=1) +
-  #scale_y_discrete(limits=rev) +
-  #NEW
-  theme(axis.title.x=element_blank(),
-        axis.text.x = element_text(angle = 45, 
-                                       hjust = 1, 
-                                       vjust = 1.1,  
-                                       size=10),
-        
-        axis.ticks.x=element_blank(),
-        axis.title.y=element_blank(),
-        axis.text.y = element_text(face = "italic", 
-                                   size=12),
-        axis.ticks.y=element_blank(),
-        panel.grid.major=element_blank(),
-        panel.grid.minor=element_blank(),
-        strip.background = element_blank(),
-        panel.border = element_blank(),
-        #plot.background = element_blank(),
-        legend.spacing.y = unit(-1, 'mm'),
-        legend.key.height = unit(1, 'mm'))
+pred_all <- read_csv(here("Data", "Ordinal_Preds.csv"))
+
+
+d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
+d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
+
+d4 <- c(P4 = '#770194', P3 = '#1981db', P2 = "#2abb9c", P1 = '#79bc23')
+
+pred_all %>%  
+  unite("specimen", Genus_species,  sep = " ") %>% 
+  filter(method == "Full",
+         var == "MANUS") %>% 
+  group_by(specimen) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =specimen , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom'
+         ) 
+  
 ```
+
+# Extant Plots
+
+### Full
+
+```{r}
+
+d4 <- c('Inter-Substrate' = '#770194', 'Terrestrial' = '#1981db', 'Scansorial' = "#2abb9c", 'Arboreal' = '#79bc23')
+
+p1 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p1+p2 + plot_annotation(title = "Extant Predicitons With Phylogenetic Information") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Predict_Ord_Extant_Full.pdf"), width = 8.5, height = 12)
+  
+```
+
+### Fossil
+
+```{r}
+
+p1 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank()
+         ) + 
+  facet_wrap(~fct_relevel(var,var_acc),  ncol = 2)
+
+p1+p2 + plot_annotation(title = "Extant Predicitons Without Phylogenetic Information") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Predict_Ord_Extant_Fossil.pdf"), width = 8.5, height = 12)
+  
+```
+
+
+#### Switched Order
+
+```{r}
+
+p1 <- pred_all %>% 
+   
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression")) %>%
+  mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y =fct_relevel(var,var_acc) , 
+             x = n, 
+             fill = rank)) + 
+  geom_bar(position = "fill", 
+           stat = 'identity', 
+           alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+  scale_fill_grey(start = 0.8, end = 0) +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression"))  %>%
+   mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y = fct_relevel(var,var_acc) , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+    scale_fill_grey(start = 0.8, end = 0) +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p1/p2 + plot_annotation(title = "Predicitons for species with known locomotor rankings without phylogenetic information", subtitle = "Top row are arboreal except for scansorial Tupaia\nBottom row are inter-substrate except for terrestrial hedgehog & opossum" ) + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Ord_Pred_Extant2.pdf"), width = 11, height = 8)
+  
+```
+
+
+
+# Fossil Plots
 
 
 ```{r}
-pred_df %>% filter(var %in% var_ord3) %>% mutate(var = as.factor(var)) %>% 
-  ggplot(aes( x = fct_relevel(var,var_ord3), y = wa_rank, color = Genus_species)) +
-  geom_hline(yintercept = c(3.5, 2.5, 1.5), linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = c(0.5, 0.68268), 
-                     #linewidth = c(0.75, 0.5), 
-                     position = position_dodge(width = -.6)
-                     ) + ylim(1,4) +
-   theme_pander() + 
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) ) +
-  scale_y_reverse(limits=c(4,1), expand=c(0.01,0.01))
+p1 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(#method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% old) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression"))  %>%
+  mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y = fct_relevel(var,var_acc) , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+    scale_fill_grey(start = 0.8, end = 0) +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(#method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% multi) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression")) %>%
+  mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y =fct_relevel(var,var_acc) , 
+             x = n, 
+             fill = rank)) + 
+  geom_bar(position = "fill", 
+           stat = 'identity', 
+           alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+  scale_fill_grey(start = 0.8, end = 0) +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p3 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(#method == "Fossil",
+         var %in% var_acc,
+         Genus_species %in% primate) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression")) %>%
+  mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y =fct_relevel(var,var_acc) , 
+             x = n, 
+             fill = rank)) + 
+  geom_bar(position = "fill", 
+           stat = 'identity', 
+           alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+  scale_fill_grey(start = 0.8, end = 0) +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="Proportion of Estimates") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p1/p2 / p3 + plot_annotation(title = "Fossil Predicitons from Ranked-Ordinal Models") + plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Ord_Pred_Fossil.pdf"), width = 10, height = 10)
+  
 ```
 
 
-## Add means to the plots?
-Isn't really a good idea because there is uneven sampling across measurements
-```{r}
-#meandf <- pred_all %>% group_by(substrate, method, Genus_species, draw) %>% 
-#  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% 
-#  ungroup() %>% 
-#  mutate(var = "Mean")
-#
-#pred_all <- bind_rows(pred_all, meandf)
-```
 
-
-
-
-# Whole Shebang  
-
-### Plot helpers
-```{r}
-var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
-#just the "sigs"
-var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-# just the really important sigs
-var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
-#pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
-#with the mean probability
-var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
-
-
-pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
-
-```
-
+# Whole Shebang
 
 ### function
+
 ```{r}
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+# shading
+shades <- data.frame(xmin=seq(1.5,13-1.5, 2),
+                     xmax=seq(2.5,13+.5, 2),
+                     ymin=0, ymax=Inf)
+
 hplot <- function(groups, method){
   pred_all %>% filter(Genus_species %in% {{groups}},
                          method == {{method}}) %>% 
     mutate(var =  as.factor(var)) %>% 
   ggplot(aes(y = Prob_of_Climbing, 
-             x = fct_relevel(var,var_ord3), 
+             x = fct_relevel(var,var_acc), 
              #y = var,
              color = Genus_species)) +
   geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
@@ -399,41 +876,52 @@ hplot <- function(groups, method){
                      #linewidth = c(0.75, 0.5), 
                      position = position_dodge(width = -.6)) + ylim(0,1) +
     labs(x = "", y = "Probability of Climbing") +
-  scale_color_manual(values = pal) + theme_pander() + 
+  scale_color_manual(values = pal) + theme_pander(gM = F) + 
+    geom_rect(inherit.aes = F, 
+              data = shades, 
+              mapping = aes(xmin=xmin, 
+                            xmax=xmax, 
+                            ymin = ymin, 
+                            ymax = ymax), 
+              alpha = 0.125) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) )
+        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7))
 }
-
 
 ```
 
-###  big df
-
-
+### big df
 
 ### Big Plot
+
 ```{r}
 pl5 <- hplot(old, "Fossil") + 
-  ggtitle("Extinct Predicitons 1") + 
+  ggtitle("Mesozoic Mammal Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank(),
+        panel.grid.major.y = element_blank())
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") + 
   theme(axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
 
-pl6 <- hplot(new, "Fossil") + 
-  ggtitle("Extinct Predicitons 2") + 
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + 
   theme(#axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
 
 
-t3 <- pl5 / pl6 
+t3 <- pl5 / pl6 /pl7
 
 t3
 
-ggsave(here("Plots", "Predict_Fossil.pdf"), height = 6, width = 13)
+ggsave(here("Plots", "Predict_Ord_Int_Fossil.pdf"), height = 8, width = 13)
 
 ```
-
 
 ```{r}
 pl1 <- hplot(extant_climb, "Full") + 
@@ -467,33 +955,18 @@ t2 <- pl3 / pl4 + plot_layout(guides = "collect")
 
 wrap_plots(t1, t2, ncol = 1)
 
-ggsave(here("Plots", "Predict_Extant.pdf"), height = 11, width = 13)
+ggsave(here("Plots", "Predict_Int_Extant.pdf"), height = 10, width = 13)
 
 ```
 
 ```{r}
-wrap_plots(t1, t2, t3, ncol = 1)
+pl2 / pl4 + plot_layout(guides = "collect")
 
-ggsave(here("Plots", "Predict_All.pdf"), height = 16, width = 13)
+ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
 ```
-
-
 
 ```{r}
-library(distributional)
+wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
-theme_set(theme_ggdist())
-
-# ON SAMPLE DATA
-set.seed(1234)
-df = data.frame(
-  group = c("a", "b", "c"),
-  value = rnorm(1500, mean = c(5, 7, 9), sd = c(1, 1.5, 1))
-)
-tt <- df %>%
-  ggplot(aes(x = value, y = group)) +
-  stat_pointinterval()
-
-tt + scale_x_reverse()
+ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
 ```
-
