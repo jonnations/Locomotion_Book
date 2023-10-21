@@ -1,0 +1,488 @@
+#NEXUS
+[R-package treeio, Fri Oct 20 10:36:12 2023]
+
+BEGIN TAXA;
+	DIMENSIONS NTAX = 238;
+	TAXLABELS
+		Zaglossus_bruijnii_TACHYGLOSSIDAE_MONOTREMATA
+		Ornithorhynchus_anatinus_ORNITHORHYNCHIDAE_MONOTREMATA
+		Dendrohyrax_arboreus_PROCAVIIDAE_HYRACOIDEA
+		Petrodromus_tetradactylus_MACROSCELIDIDAE_MACROSCELIDEA
+		Elephantulus_rufescens_MACROSCELIDIDAE_MACROSCELIDEA
+		Microgale_talazaci_TENRECIDAE_AFROSORICIDA
+		Hemicentetes_semispinosus_TENRECIDAE_AFROSORICIDA
+		Echinops_telfairi_TENRECIDAE_AFROSORICIDA
+		Amblysomus_hottentotus_CHRYSOCHLORIDAE_AFROSORICIDA
+		Dasypus_novemcinctus_DASYPODIDAE_CINGULATA
+		Euphractus_sexcinctus_DASYPODIDAE_CINGULATA
+		Cabassous_centralis_DASYPODIDAE_CINGULATA
+		Tamandua_tetradactyla_MYRMECOPHAGIDAE_PILOSA
+		Tamandua_mexicana_MYRMECOPHAGIDAE_PILOSA
+		Solenodon_paradoxus_SOLENODONTIDAE_EULIPOTYPHLA
+		Scapanus_townsendii_TALPIDAE_EULIPOTYPHLA
+		Scapanus_orarius_TALPIDAE_EULIPOTYPHLA
+		Sorex_trowbridgii_SORICIDAE_EULIPOTYPHLA
+		Sorex_palustris_SORICIDAE_EULIPOTYPHLA
+		Sorex_vagrans_SORICIDAE_EULIPOTYPHLA
+		Echinosorex_gymnura_ERINACEIDAE_EULIPOTYPHLA
+		Atelerix_albiventris_ERINACEIDAE_EULIPOTYPHLA
+		Vulpes_vulpes_CANIDAE_CARNIVORA
+		Urocyon_cinereoargenteus_CANIDAE_CARNIVORA
+		Canis_lupus_CANIDAE_CARNIVORA
+		Cerdocyon_thous_CANIDAE_CARNIVORA
+		Spilogale_putorius_MEPHITIDAE_CARNIVORA
+		Mephitis_mephitis_MEPHITIDAE_CARNIVORA
+		Bassariscus_astutus_PROCYONIDAE_CARNIVORA
+		Taxidea_taxus_MUSTELIDAE_CARNIVORA
+		Mellivora_capensis_MUSTELIDAE_CARNIVORA
+		Martes_pennanti_MUSTELIDAE_CARNIVORA
+		Gulo_gulo_MUSTELIDAE_CARNIVORA
+		Martes_americana_MUSTELIDAE_CARNIVORA
+		Eira_barbara_MUSTELIDAE_CARNIVORA
+		Mustela_erminea_MUSTELIDAE_CARNIVORA
+		Mustela_putorius_MUSTELIDAE_CARNIVORA
+		Neovison_vison_MUSTELIDAE_CARNIVORA
+		Galictis_cuja_MUSTELIDAE_CARNIVORA
+		Lontra_canadensis_MUSTELIDAE_CARNIVORA
+		Ailurus_fulgens_AILURIDAE_CARNIVORA
+		Ursus_americanus_URSIDAE_CARNIVORA
+		Nandinia_binotata_NANDINIIDAE_CARNIVORA
+		Crocuta_crocuta_HYAENIDAE_CARNIVORA
+		Crossarchus_alexandri_HERPESTIDAE_CARNIVORA
+		Suricata_suricatta_HERPESTIDAE_CARNIVORA
+		Herpestes_brachyurus_HERPESTIDAE_CARNIVORA
+		Herpestes_edwardsii_HERPESTIDAE_CARNIVORA
+		Genetta_maculata_VIVERRIDAE_CARNIVORA
+		Paradoxurus_hermaphroditus_VIVERRIDAE_CARNIVORA
+		Paguma_larvata_VIVERRIDAE_CARNIVORA
+		Arctictis_binturong_VIVERRIDAE_CARNIVORA
+		Prionodon_linsang_PRIONODONTIDAE_CARNIVORA
+		Herpailurus_yagouaroundi_FELIDAE_CARNIVORA
+		Leopardus_geoffroyi_FELIDAE_CARNIVORA
+		Prionailurus_planiceps_FELIDAE_CARNIVORA
+		Felis_margarita_FELIDAE_CARNIVORA
+		Panthera_tigris_FELIDAE_CARNIVORA
+		Panthera_leo_FELIDAE_CARNIVORA
+		Dama_dama_CERVIDAE_CETARTIODACTYLA
+		Raphicerus_campestris_BOVIDAE_CETARTIODACTYLA
+		Galeopterus_variegatus_CYNOCEPHALIDAE_DERMOPTERA
+		Cynocephalus_volans_CYNOCEPHALIDAE_DERMOPTERA
+		Tupaia_tana_TUPAIIDAE_SCANDENTIA
+		Tupaia_minor_TUPAIIDAE_SCANDENTIA
+		Tupaia_longipes_TUPAIIDAE_SCANDENTIA
+		Tupaia_glis_TUPAIIDAE_SCANDENTIA
+		Nycticebus_coucang_LORISIDAE_PRIMATES
+		Galago_senegalensis_GALAGIDAE_PRIMATES
+		Lemur_catta_LEMURIDAE_PRIMATES
+		Mico_argentatus_CALLITRICHIDAE_PRIMATES
+		Callithrix_geoffroyi_CALLITRICHIDAE_PRIMATES
+		Cebuella_pygmaea_CALLITRICHIDAE_PRIMATES
+		Callimico_goeldii_CALLITRICHIDAE_PRIMATES
+		Leontopithecus_chrysomelas_CALLITRICHIDAE_PRIMATES
+		Saguinus_oedipus_CALLITRICHIDAE_PRIMATES
+		Saimiri_sciureus_CEBIDAE_PRIMATES
+		Ochotona_princeps_OCHOTONIDAE_LAGOMORPHA
+		Brachylagus_idahoensis_LEPORIDAE_LAGOMORPHA
+		Glis_glis_GLIRIDAE_RODENTIA
+		Aplodontia_rufa_APLODONTIIDAE_RODENTIA
+		Ratufa_bicolor_SCIURIDAE_RODENTIA
+		Heliosciurus_rufobrachium_SCIURIDAE_RODENTIA
+		Paraxerus_cepapi_SCIURIDAE_RODENTIA
+		Funisciurus_pyrropus_SCIURIDAE_RODENTIA
+		Tamias_dorsalis_SCIURIDAE_RODENTIA
+		Tamias_amoenus_SCIURIDAE_RODENTIA
+		Urocitellus_parryii_SCIURIDAE_RODENTIA
+		Urocitellus_columbianus_SCIURIDAE_RODENTIA
+		Cynomys_ludovicianus_SCIURIDAE_RODENTIA
+		Marmota_caligata_SCIURIDAE_RODENTIA
+		Callospermophilus_lateralis_SCIURIDAE_RODENTIA
+		Sciurus_aberti_SCIURIDAE_RODENTIA
+		Sciurus_carolinensis_SCIURIDAE_RODENTIA
+		Sciurus_niger_SCIURIDAE_RODENTIA
+		Tamiasciurus_douglasii_SCIURIDAE_RODENTIA
+		Glaucomys_volans_SCIURIDAE_RODENTIA
+		Glaucomys_sabrinus_SCIURIDAE_RODENTIA
+		Eoglaucomys_fimbriatus_SCIURIDAE_RODENTIA
+		Aeromys_tephromelas_SCIURIDAE_RODENTIA
+		Petaurista_elegans_SCIURIDAE_RODENTIA
+		Petaurista_magnificus_SCIURIDAE_RODENTIA
+		Petaurista_petaurista_SCIURIDAE_RODENTIA
+		Hystrix_cristata_HYSTRICIDAE_RODENTIA
+		Cryptomys_hottentotus_BATHYERGIDAE_RODENTIA
+		Myoprocta_acouchy_DASYPROCTIDAE_RODENTIA
+		Galea_musteloides_CAVIIDAE_RODENTIA
+		Cavia_porcellus_CAVIIDAE_RODENTIA
+		Erethizon_dorsatum_ERETHIZONTIDAE_RODENTIA
+		Geocapromys_ingrahami_CAPROMYIDAE_RODENTIA
+		Plagiodontia_aedium_CAPROMYIDAE_RODENTIA
+		Myocastor_coypus_MYOCASTORIDAE_RODENTIA
+		Octodontomys_gliroides_OCTODONTIDAE_RODENTIA
+		Octodon_degus_OCTODONTIDAE_RODENTIA
+		Allactaga_sibirica_DIPODIDAE_RODENTIA
+		Jaculus_jaculus_DIPODIDAE_RODENTIA
+		Spalax_leucodon_SPALACIDAE_RODENTIA
+		Rhizomys_sumatrensis_SPALACIDAE_RODENTIA
+		Eliurus_webbi_NESOMYIDAE_RODENTIA
+		Nesomys_rufus_NESOMYIDAE_RODENTIA
+		Arborimus_longicaudus_CRICETIDAE_RODENTIA
+		Ondatra_zibethicus_CRICETIDAE_RODENTIA
+		Synaptomys_cooperi_CRICETIDAE_RODENTIA
+		Microtus_oeconomus_CRICETIDAE_RODENTIA
+		Microtus_townsendii_CRICETIDAE_RODENTIA
+		Microtus_pennsylvanicus_CRICETIDAE_RODENTIA
+		Microtus_montanus_CRICETIDAE_RODENTIA
+		Microtus_pinetorum_CRICETIDAE_RODENTIA
+		Myodes_rutilus_CRICETIDAE_RODENTIA
+		Neotoma_bryanti_CRICETIDAE_RODENTIA
+		Peromyscus_maniculatus_CRICETIDAE_RODENTIA
+		Ototylomys_phyllotis_CRICETIDAE_RODENTIA
+		Akodon_aliquantulus_CRICETIDAE_RODENTIA
+		Rhipidomys_fulviventer_CRICETIDAE_RODENTIA
+		Lophiomys_imhausi_MURIDAE_RODENTIA
+		Desmodillus_auricularis_MURIDAE_RODENTIA
+		Gerbillus_gerbillus_MURIDAE_RODENTIA
+		Rattus_everetti_MURIDAE_RODENTIA
+		Rattus_andamanensis_MURIDAE_RODENTIA
+		Bullimus_luzonicus_MURIDAE_RODENTIA
+		Niviventer_confucianus_MURIDAE_RODENTIA
+		Apomys_musculus_MURIDAE_RODENTIA
+		Apomys_microdon_MURIDAE_RODENTIA
+		Apomys_gracilirostris_MURIDAE_RODENTIA
+		Apomys_datae_MURIDAE_RODENTIA
+		Apomys_abrae_MURIDAE_RODENTIA
+		Apomys_sacobianus_MURIDAE_RODENTIA
+		Archboldomys_maximus_MURIDAE_RODENTIA
+		Chrotomys_whiteheadi_MURIDAE_RODENTIA
+		Rhynchomys_soricoides_MURIDAE_RODENTIA
+		Hydromys_chrysogaster_MURIDAE_RODENTIA
+		Mus_musculus_MURIDAE_RODENTIA
+		Phloeomys_pallidus_MURIDAE_RODENTIA
+		Batomys_granti_MURIDAE_RODENTIA
+		Dipodomys_deserti_HETEROMYIDAE_RODENTIA
+		Thomomys_bottae_GEOMYIDAE_RODENTIA
+		Geomys_pinetis_GEOMYIDAE_RODENTIA
+		Cratogeomys_merriami_GEOMYIDAE_RODENTIA
+		Perognathus_parvus_HETEROMYIDAE_RODENTIA
+		Chaetodipus_fallax_HETEROMYIDAE_RODENTIA
+		Chaetodipus_hispidus_HETEROMYIDAE_RODENTIA
+		Chaetodipus_formosus_HETEROMYIDAE_RODENTIA
+		Pedetes_capensis_PEDETIDAE_RODENTIA
+		Anomalurus_derbianus_ANOMALURIDAE_RODENTIA
+		Anomalurus_beecrofti_ANOMALURIDAE_RODENTIA
+		Anomalurus_pelii_ANOMALURIDAE_RODENTIA
+		Rhyncholestes_raphanurus_CAENOLESTIDAE_PAUCITUBERCULATA
+		Lestoros_inca_CAENOLESTIDAE_PAUCITUBERCULATA
+		Caenolestes_fuliginosus_CAENOLESTIDAE_PAUCITUBERCULATA
+		Marmosa_regina_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosa_demerarae_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosa_murina_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosa_mexicana_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosa_robinsoni_DIDELPHIDAE_DIDELPHIMORPHIA
+		Monodelphis_adusta_DIDELPHIDAE_DIDELPHIMORPHIA
+		Monodelphis_domestica_DIDELPHIDAE_DIDELPHIMORPHIA
+		Monodelphis_brevicaudata_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosops_noctivagus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Marmosops_bishopi_DIDELPHIDAE_DIDELPHIMORPHIA
+		Gracilinanus_agilis_DIDELPHIDAE_DIDELPHIMORPHIA
+		Gracilinanus_microtarsus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Gracilinanus_marica_DIDELPHIDAE_DIDELPHIMORPHIA
+		Thylamys_elegans_DIDELPHIDAE_DIDELPHIMORPHIA
+		Thylamys_pallidior_DIDELPHIDAE_DIDELPHIMORPHIA
+		Metachirus_nudicaudatus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Lutreolina_crassicaudata_DIDELPHIDAE_DIDELPHIMORPHIA
+		Didelphis_virginiana_DIDELPHIDAE_DIDELPHIMORPHIA
+		Didelphis_marsupialis_DIDELPHIDAE_DIDELPHIMORPHIA
+		Philander_opossum_DIDELPHIDAE_DIDELPHIMORPHIA
+		Chironectes_minimus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Caluromys_philander_DIDELPHIDAE_DIDELPHIMORPHIA
+		Caluromys_lanatus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Caluromys_derbianus_DIDELPHIDAE_DIDELPHIMORPHIA
+		Caluromysiops_irrupta_DIDELPHIDAE_DIDELPHIMORPHIA
+		Dromiciops_gliroides_MICROBIOTHERIIDAE_MICROBIOTHERIA
+		Notoryctes_typhlops_NOTORYCTIDAE_NOTORYCTEMORPHIA
+		Isoodon_macrourus_PERAMELIDAE_PERAMELEMORPHIA
+		Isoodon_obesulus_PERAMELIDAE_PERAMELEMORPHIA
+		Perameles_gunnii_PERAMELIDAE_PERAMELEMORPHIA
+		Perameles_nasuta_PERAMELIDAE_PERAMELEMORPHIA
+		Echymipera_kalubu_PERAMELIDAE_PERAMELEMORPHIA
+		Myrmecobius_fasciatus_MYRMECOBIIDAE_DASYUROMORPHIA
+		Antechinus_swainsonii_DASYURIDAE_DASYUROMORPHIA
+		Antechinus_stuartii_DASYURIDAE_DASYUROMORPHIA
+		Dasyurus_hallucatus_DASYURIDAE_DASYUROMORPHIA
+		Sarcophilus_harrisii_DASYURIDAE_DASYUROMORPHIA
+		Dasyurus_maculatus_DASYURIDAE_DASYUROMORPHIA
+		Dasyurus_viverrinus_DASYURIDAE_DASYUROMORPHIA
+		Dasyuroides_byrnei_DASYURIDAE_DASYUROMORPHIA
+		Thylacinus_cynocephalus_THYLACINIDAE_DASYUROMORPHIA
+		Phascolarctos_cinereus_PHASCOLARCTIDAE_DIPROTODONTIA
+		Trichosurus_vulpecula_PHALANGERIDAE_DIPROTODONTIA
+		Spilocuscus_maculatus_PHALANGERIDAE_DIPROTODONTIA
+		Phalanger_gymnotis_PHALANGERIDAE_DIPROTODONTIA
+		Phalanger_orientalis_PHALANGERIDAE_DIPROTODONTIA
+		Thylogale_thetis_MACROPODIDAE_DIPROTODONTIA
+		Thylogale_stigmatica_MACROPODIDAE_DIPROTODONTIA
+		Petrogale_lateralis_MACROPODIDAE_DIPROTODONTIA
+		Petrogale_penicillata_MACROPODIDAE_DIPROTODONTIA
+		Petrogale_inornata_MACROPODIDAE_DIPROTODONTIA
+		Petrogale_xanthopus_MACROPODIDAE_DIPROTODONTIA
+		Dendrolagus_matschiei_MACROPODIDAE_DIPROTODONTIA
+		Wallabia_bicolor_MACROPODIDAE_DIPROTODONTIA
+		Macropus_irma_MACROPODIDAE_DIPROTODONTIA
+		Macropus_parryi_MACROPODIDAE_DIPROTODONTIA
+		Macropus_eugenii_MACROPODIDAE_DIPROTODONTIA
+		Macropus_robustus_MACROPODIDAE_DIPROTODONTIA
+		Macropus_antilopinus_MACROPODIDAE_DIPROTODONTIA
+		Macropus_giganteus_MACROPODIDAE_DIPROTODONTIA
+		Setonix_brachyurus_MACROPODIDAE_DIPROTODONTIA
+		Potorous_tridactylus_POTOROIDAE_DIPROTODONTIA
+		Aepyprymnus_rufescens_POTOROIDAE_DIPROTODONTIA
+		Pseudocheirus_peregrinus_PSEUDOCHEIRIDAE_DIPROTODONTIA
+		Petauroides_volans_PSEUDOCHEIRIDAE_DIPROTODONTIA
+		Hemibelideus_lemuroides_PSEUDOCHEIRIDAE_DIPROTODONTIA
+		Petaurus_norfolcensis_PETAURIDAE_DIPROTODONTIA
+		Petaurus_breviceps_PETAURIDAE_DIPROTODONTIA
+		Acrobates_pygmaeus_ACROBATIDAE_DIPROTODONTIA
+	;
+END;
+BEGIN TREES;
+	TRANSLATE
+		1	Zaglossus_bruijnii_TACHYGLOSSIDAE_MONOTREMATA,
+		2	Ornithorhynchus_anatinus_ORNITHORHYNCHIDAE_MONOTREMATA,
+		3	Dendrohyrax_arboreus_PROCAVIIDAE_HYRACOIDEA,
+		4	Petrodromus_tetradactylus_MACROSCELIDIDAE_MACROSCELIDEA,
+		5	Elephantulus_rufescens_MACROSCELIDIDAE_MACROSCELIDEA,
+		6	Microgale_talazaci_TENRECIDAE_AFROSORICIDA,
+		7	Hemicentetes_semispinosus_TENRECIDAE_AFROSORICIDA,
+		8	Echinops_telfairi_TENRECIDAE_AFROSORICIDA,
+		9	Amblysomus_hottentotus_CHRYSOCHLORIDAE_AFROSORICIDA,
+		10	Dasypus_novemcinctus_DASYPODIDAE_CINGULATA,
+		11	Euphractus_sexcinctus_DASYPODIDAE_CINGULATA,
+		12	Cabassous_centralis_DASYPODIDAE_CINGULATA,
+		13	Tamandua_tetradactyla_MYRMECOPHAGIDAE_PILOSA,
+		14	Tamandua_mexicana_MYRMECOPHAGIDAE_PILOSA,
+		15	Solenodon_paradoxus_SOLENODONTIDAE_EULIPOTYPHLA,
+		16	Scapanus_townsendii_TALPIDAE_EULIPOTYPHLA,
+		17	Scapanus_orarius_TALPIDAE_EULIPOTYPHLA,
+		18	Sorex_trowbridgii_SORICIDAE_EULIPOTYPHLA,
+		19	Sorex_palustris_SORICIDAE_EULIPOTYPHLA,
+		20	Sorex_vagrans_SORICIDAE_EULIPOTYPHLA,
+		21	Echinosorex_gymnura_ERINACEIDAE_EULIPOTYPHLA,
+		22	Atelerix_albiventris_ERINACEIDAE_EULIPOTYPHLA,
+		23	Vulpes_vulpes_CANIDAE_CARNIVORA,
+		24	Urocyon_cinereoargenteus_CANIDAE_CARNIVORA,
+		25	Canis_lupus_CANIDAE_CARNIVORA,
+		26	Cerdocyon_thous_CANIDAE_CARNIVORA,
+		27	Spilogale_putorius_MEPHITIDAE_CARNIVORA,
+		28	Mephitis_mephitis_MEPHITIDAE_CARNIVORA,
+		29	Bassariscus_astutus_PROCYONIDAE_CARNIVORA,
+		30	Taxidea_taxus_MUSTELIDAE_CARNIVORA,
+		31	Mellivora_capensis_MUSTELIDAE_CARNIVORA,
+		32	Martes_pennanti_MUSTELIDAE_CARNIVORA,
+		33	Gulo_gulo_MUSTELIDAE_CARNIVORA,
+		34	Martes_americana_MUSTELIDAE_CARNIVORA,
+		35	Eira_barbara_MUSTELIDAE_CARNIVORA,
+		36	Mustela_erminea_MUSTELIDAE_CARNIVORA,
+		37	Mustela_putorius_MUSTELIDAE_CARNIVORA,
+		38	Neovison_vison_MUSTELIDAE_CARNIVORA,
+		39	Galictis_cuja_MUSTELIDAE_CARNIVORA,
+		40	Lontra_canadensis_MUSTELIDAE_CARNIVORA,
+		41	Ailurus_fulgens_AILURIDAE_CARNIVORA,
+		42	Ursus_americanus_URSIDAE_CARNIVORA,
+		43	Nandinia_binotata_NANDINIIDAE_CARNIVORA,
+		44	Crocuta_crocuta_HYAENIDAE_CARNIVORA,
+		45	Crossarchus_alexandri_HERPESTIDAE_CARNIVORA,
+		46	Suricata_suricatta_HERPESTIDAE_CARNIVORA,
+		47	Herpestes_brachyurus_HERPESTIDAE_CARNIVORA,
+		48	Herpestes_edwardsii_HERPESTIDAE_CARNIVORA,
+		49	Genetta_maculata_VIVERRIDAE_CARNIVORA,
+		50	Paradoxurus_hermaphroditus_VIVERRIDAE_CARNIVORA,
+		51	Paguma_larvata_VIVERRIDAE_CARNIVORA,
+		52	Arctictis_binturong_VIVERRIDAE_CARNIVORA,
+		53	Prionodon_linsang_PRIONODONTIDAE_CARNIVORA,
+		54	Herpailurus_yagouaroundi_FELIDAE_CARNIVORA,
+		55	Leopardus_geoffroyi_FELIDAE_CARNIVORA,
+		56	Prionailurus_planiceps_FELIDAE_CARNIVORA,
+		57	Felis_margarita_FELIDAE_CARNIVORA,
+		58	Panthera_tigris_FELIDAE_CARNIVORA,
+		59	Panthera_leo_FELIDAE_CARNIVORA,
+		60	Dama_dama_CERVIDAE_CETARTIODACTYLA,
+		61	Raphicerus_campestris_BOVIDAE_CETARTIODACTYLA,
+		62	Galeopterus_variegatus_CYNOCEPHALIDAE_DERMOPTERA,
+		63	Cynocephalus_volans_CYNOCEPHALIDAE_DERMOPTERA,
+		64	Tupaia_tana_TUPAIIDAE_SCANDENTIA,
+		65	Tupaia_minor_TUPAIIDAE_SCANDENTIA,
+		66	Tupaia_longipes_TUPAIIDAE_SCANDENTIA,
+		67	Tupaia_glis_TUPAIIDAE_SCANDENTIA,
+		68	Nycticebus_coucang_LORISIDAE_PRIMATES,
+		69	Galago_senegalensis_GALAGIDAE_PRIMATES,
+		70	Lemur_catta_LEMURIDAE_PRIMATES,
+		71	Mico_argentatus_CALLITRICHIDAE_PRIMATES,
+		72	Callithrix_geoffroyi_CALLITRICHIDAE_PRIMATES,
+		73	Cebuella_pygmaea_CALLITRICHIDAE_PRIMATES,
+		74	Callimico_goeldii_CALLITRICHIDAE_PRIMATES,
+		75	Leontopithecus_chrysomelas_CALLITRICHIDAE_PRIMATES,
+		76	Saguinus_oedipus_CALLITRICHIDAE_PRIMATES,
+		77	Saimiri_sciureus_CEBIDAE_PRIMATES,
+		78	Ochotona_princeps_OCHOTONIDAE_LAGOMORPHA,
+		79	Brachylagus_idahoensis_LEPORIDAE_LAGOMORPHA,
+		80	Glis_glis_GLIRIDAE_RODENTIA,
+		81	Aplodontia_rufa_APLODONTIIDAE_RODENTIA,
+		82	Ratufa_bicolor_SCIURIDAE_RODENTIA,
+		83	Heliosciurus_rufobrachium_SCIURIDAE_RODENTIA,
+		84	Paraxerus_cepapi_SCIURIDAE_RODENTIA,
+		85	Funisciurus_pyrropus_SCIURIDAE_RODENTIA,
+		86	Tamias_dorsalis_SCIURIDAE_RODENTIA,
+		87	Tamias_amoenus_SCIURIDAE_RODENTIA,
+		88	Urocitellus_parryii_SCIURIDAE_RODENTIA,
+		89	Urocitellus_columbianus_SCIURIDAE_RODENTIA,
+		90	Cynomys_ludovicianus_SCIURIDAE_RODENTIA,
+		91	Marmota_caligata_SCIURIDAE_RODENTIA,
+		92	Callospermophilus_lateralis_SCIURIDAE_RODENTIA,
+		93	Sciurus_aberti_SCIURIDAE_RODENTIA,
+		94	Sciurus_carolinensis_SCIURIDAE_RODENTIA,
+		95	Sciurus_niger_SCIURIDAE_RODENTIA,
+		96	Tamiasciurus_douglasii_SCIURIDAE_RODENTIA,
+		97	Glaucomys_volans_SCIURIDAE_RODENTIA,
+		98	Glaucomys_sabrinus_SCIURIDAE_RODENTIA,
+		99	Eoglaucomys_fimbriatus_SCIURIDAE_RODENTIA,
+		100	Aeromys_tephromelas_SCIURIDAE_RODENTIA,
+		101	Petaurista_elegans_SCIURIDAE_RODENTIA,
+		102	Petaurista_magnificus_SCIURIDAE_RODENTIA,
+		103	Petaurista_petaurista_SCIURIDAE_RODENTIA,
+		104	Hystrix_cristata_HYSTRICIDAE_RODENTIA,
+		105	Cryptomys_hottentotus_BATHYERGIDAE_RODENTIA,
+		106	Myoprocta_acouchy_DASYPROCTIDAE_RODENTIA,
+		107	Galea_musteloides_CAVIIDAE_RODENTIA,
+		108	Cavia_porcellus_CAVIIDAE_RODENTIA,
+		109	Erethizon_dorsatum_ERETHIZONTIDAE_RODENTIA,
+		110	Geocapromys_ingrahami_CAPROMYIDAE_RODENTIA,
+		111	Plagiodontia_aedium_CAPROMYIDAE_RODENTIA,
+		112	Myocastor_coypus_MYOCASTORIDAE_RODENTIA,
+		113	Octodontomys_gliroides_OCTODONTIDAE_RODENTIA,
+		114	Octodon_degus_OCTODONTIDAE_RODENTIA,
+		115	Allactaga_sibirica_DIPODIDAE_RODENTIA,
+		116	Jaculus_jaculus_DIPODIDAE_RODENTIA,
+		117	Spalax_leucodon_SPALACIDAE_RODENTIA,
+		118	Rhizomys_sumatrensis_SPALACIDAE_RODENTIA,
+		119	Eliurus_webbi_NESOMYIDAE_RODENTIA,
+		120	Nesomys_rufus_NESOMYIDAE_RODENTIA,
+		121	Arborimus_longicaudus_CRICETIDAE_RODENTIA,
+		122	Ondatra_zibethicus_CRICETIDAE_RODENTIA,
+		123	Synaptomys_cooperi_CRICETIDAE_RODENTIA,
+		124	Microtus_oeconomus_CRICETIDAE_RODENTIA,
+		125	Microtus_townsendii_CRICETIDAE_RODENTIA,
+		126	Microtus_pennsylvanicus_CRICETIDAE_RODENTIA,
+		127	Microtus_montanus_CRICETIDAE_RODENTIA,
+		128	Microtus_pinetorum_CRICETIDAE_RODENTIA,
+		129	Myodes_rutilus_CRICETIDAE_RODENTIA,
+		130	Neotoma_bryanti_CRICETIDAE_RODENTIA,
+		131	Peromyscus_maniculatus_CRICETIDAE_RODENTIA,
+		132	Ototylomys_phyllotis_CRICETIDAE_RODENTIA,
+		133	Akodon_aliquantulus_CRICETIDAE_RODENTIA,
+		134	Rhipidomys_fulviventer_CRICETIDAE_RODENTIA,
+		135	Lophiomys_imhausi_MURIDAE_RODENTIA,
+		136	Desmodillus_auricularis_MURIDAE_RODENTIA,
+		137	Gerbillus_gerbillus_MURIDAE_RODENTIA,
+		138	Rattus_everetti_MURIDAE_RODENTIA,
+		139	Rattus_andamanensis_MURIDAE_RODENTIA,
+		140	Bullimus_luzonicus_MURIDAE_RODENTIA,
+		141	Niviventer_confucianus_MURIDAE_RODENTIA,
+		142	Apomys_musculus_MURIDAE_RODENTIA,
+		143	Apomys_microdon_MURIDAE_RODENTIA,
+		144	Apomys_gracilirostris_MURIDAE_RODENTIA,
+		145	Apomys_datae_MURIDAE_RODENTIA,
+		146	Apomys_abrae_MURIDAE_RODENTIA,
+		147	Apomys_sacobianus_MURIDAE_RODENTIA,
+		148	Archboldomys_maximus_MURIDAE_RODENTIA,
+		149	Chrotomys_whiteheadi_MURIDAE_RODENTIA,
+		150	Rhynchomys_soricoides_MURIDAE_RODENTIA,
+		151	Hydromys_chrysogaster_MURIDAE_RODENTIA,
+		152	Mus_musculus_MURIDAE_RODENTIA,
+		153	Phloeomys_pallidus_MURIDAE_RODENTIA,
+		154	Batomys_granti_MURIDAE_RODENTIA,
+		155	Dipodomys_deserti_HETEROMYIDAE_RODENTIA,
+		156	Thomomys_bottae_GEOMYIDAE_RODENTIA,
+		157	Geomys_pinetis_GEOMYIDAE_RODENTIA,
+		158	Cratogeomys_merriami_GEOMYIDAE_RODENTIA,
+		159	Perognathus_parvus_HETEROMYIDAE_RODENTIA,
+		160	Chaetodipus_fallax_HETEROMYIDAE_RODENTIA,
+		161	Chaetodipus_hispidus_HETEROMYIDAE_RODENTIA,
+		162	Chaetodipus_formosus_HETEROMYIDAE_RODENTIA,
+		163	Pedetes_capensis_PEDETIDAE_RODENTIA,
+		164	Anomalurus_derbianus_ANOMALURIDAE_RODENTIA,
+		165	Anomalurus_beecrofti_ANOMALURIDAE_RODENTIA,
+		166	Anomalurus_pelii_ANOMALURIDAE_RODENTIA,
+		167	Rhyncholestes_raphanurus_CAENOLESTIDAE_PAUCITUBERCULATA,
+		168	Lestoros_inca_CAENOLESTIDAE_PAUCITUBERCULATA,
+		169	Caenolestes_fuliginosus_CAENOLESTIDAE_PAUCITUBERCULATA,
+		170	Marmosa_regina_DIDELPHIDAE_DIDELPHIMORPHIA,
+		171	Marmosa_demerarae_DIDELPHIDAE_DIDELPHIMORPHIA,
+		172	Marmosa_murina_DIDELPHIDAE_DIDELPHIMORPHIA,
+		173	Marmosa_mexicana_DIDELPHIDAE_DIDELPHIMORPHIA,
+		174	Marmosa_robinsoni_DIDELPHIDAE_DIDELPHIMORPHIA,
+		175	Monodelphis_adusta_DIDELPHIDAE_DIDELPHIMORPHIA,
+		176	Monodelphis_domestica_DIDELPHIDAE_DIDELPHIMORPHIA,
+		177	Monodelphis_brevicaudata_DIDELPHIDAE_DIDELPHIMORPHIA,
+		178	Marmosops_noctivagus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		179	Marmosops_bishopi_DIDELPHIDAE_DIDELPHIMORPHIA,
+		180	Gracilinanus_agilis_DIDELPHIDAE_DIDELPHIMORPHIA,
+		181	Gracilinanus_microtarsus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		182	Gracilinanus_marica_DIDELPHIDAE_DIDELPHIMORPHIA,
+		183	Thylamys_elegans_DIDELPHIDAE_DIDELPHIMORPHIA,
+		184	Thylamys_pallidior_DIDELPHIDAE_DIDELPHIMORPHIA,
+		185	Metachirus_nudicaudatus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		186	Lutreolina_crassicaudata_DIDELPHIDAE_DIDELPHIMORPHIA,
+		187	Didelphis_virginiana_DIDELPHIDAE_DIDELPHIMORPHIA,
+		188	Didelphis_marsupialis_DIDELPHIDAE_DIDELPHIMORPHIA,
+		189	Philander_opossum_DIDELPHIDAE_DIDELPHIMORPHIA,
+		190	Chironectes_minimus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		191	Caluromys_philander_DIDELPHIDAE_DIDELPHIMORPHIA,
+		192	Caluromys_lanatus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		193	Caluromys_derbianus_DIDELPHIDAE_DIDELPHIMORPHIA,
+		194	Caluromysiops_irrupta_DIDELPHIDAE_DIDELPHIMORPHIA,
+		195	Dromiciops_gliroides_MICROBIOTHERIIDAE_MICROBIOTHERIA,
+		196	Notoryctes_typhlops_NOTORYCTIDAE_NOTORYCTEMORPHIA,
+		197	Isoodon_macrourus_PERAMELIDAE_PERAMELEMORPHIA,
+		198	Isoodon_obesulus_PERAMELIDAE_PERAMELEMORPHIA,
+		199	Perameles_gunnii_PERAMELIDAE_PERAMELEMORPHIA,
+		200	Perameles_nasuta_PERAMELIDAE_PERAMELEMORPHIA,
+		201	Echymipera_kalubu_PERAMELIDAE_PERAMELEMORPHIA,
+		202	Myrmecobius_fasciatus_MYRMECOBIIDAE_DASYUROMORPHIA,
+		203	Antechinus_swainsonii_DASYURIDAE_DASYUROMORPHIA,
+		204	Antechinus_stuartii_DASYURIDAE_DASYUROMORPHIA,
+		205	Dasyurus_hallucatus_DASYURIDAE_DASYUROMORPHIA,
+		206	Sarcophilus_harrisii_DASYURIDAE_DASYUROMORPHIA,
+		207	Dasyurus_maculatus_DASYURIDAE_DASYUROMORPHIA,
+		208	Dasyurus_viverrinus_DASYURIDAE_DASYUROMORPHIA,
+		209	Dasyuroides_byrnei_DASYURIDAE_DASYUROMORPHIA,
+		210	Thylacinus_cynocephalus_THYLACINIDAE_DASYUROMORPHIA,
+		211	Phascolarctos_cinereus_PHASCOLARCTIDAE_DIPROTODONTIA,
+		212	Trichosurus_vulpecula_PHALANGERIDAE_DIPROTODONTIA,
+		213	Spilocuscus_maculatus_PHALANGERIDAE_DIPROTODONTIA,
+		214	Phalanger_gymnotis_PHALANGERIDAE_DIPROTODONTIA,
+		215	Phalanger_orientalis_PHALANGERIDAE_DIPROTODONTIA,
+		216	Thylogale_thetis_MACROPODIDAE_DIPROTODONTIA,
+		217	Thylogale_stigmatica_MACROPODIDAE_DIPROTODONTIA,
+		218	Petrogale_lateralis_MACROPODIDAE_DIPROTODONTIA,
+		219	Petrogale_penicillata_MACROPODIDAE_DIPROTODONTIA,
+		220	Petrogale_inornata_MACROPODIDAE_DIPROTODONTIA,
+		221	Petrogale_xanthopus_MACROPODIDAE_DIPROTODONTIA,
+		222	Dendrolagus_matschiei_MACROPODIDAE_DIPROTODONTIA,
+		223	Wallabia_bicolor_MACROPODIDAE_DIPROTODONTIA,
+		224	Macropus_irma_MACROPODIDAE_DIPROTODONTIA,
+		225	Macropus_parryi_MACROPODIDAE_DIPROTODONTIA,
+		226	Macropus_eugenii_MACROPODIDAE_DIPROTODONTIA,
+		227	Macropus_robustus_MACROPODIDAE_DIPROTODONTIA,
+		228	Macropus_antilopinus_MACROPODIDAE_DIPROTODONTIA,
+		229	Macropus_giganteus_MACROPODIDAE_DIPROTODONTIA,
+		230	Setonix_brachyurus_MACROPODIDAE_DIPROTODONTIA,
+		231	Potorous_tridactylus_POTOROIDAE_DIPROTODONTIA,
+		232	Aepyprymnus_rufescens_POTOROIDAE_DIPROTODONTIA,
+		233	Pseudocheirus_peregrinus_PSEUDOCHEIRIDAE_DIPROTODONTIA,
+		234	Petauroides_volans_PSEUDOCHEIRIDAE_DIPROTODONTIA,
+		235	Hemibelideus_lemuroides_PSEUDOCHEIRIDAE_DIPROTODONTIA,
+		236	Petaurus_norfolcensis_PETAURIDAE_DIPROTODONTIA,
+		237	Petaurus_breviceps_PETAURIDAE_DIPROTODONTIA,
+		238	Acrobates_pygmaeus_ACROBATIDAE_DIPROTODONTIA
+	;
+	TREE * UNTITLED = [&R] 

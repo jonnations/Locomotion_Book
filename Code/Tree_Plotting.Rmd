@@ -1,0 +1,126 @@
+---
+title: "Tree Plot"
+---
+
+Plotting the phylogeny with the tips labeled as the locomotor modes
+
+```{r}
+pacman::p_load(tidyverse, ggtree, ggtreeExtra, tidytree, treeio, here)
+
+if(!require("tidytree", quietly=TRUE))
+     install_version("tidytree", version = "0.4.2")
+```
+
+#### Load Data
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  drop_na(Loc_Ord2) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_bin = case_when(is.na(Loc_bin) ~ 1,
+                             TRUE ~ Loc_bin)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A"))) %>% 
+  mutate(Loc_bin = as.factor(as.numeric(Loc_bin))) %>% 
+  filter(Genus_species != "Apomys_banahao") %>% 
+  group_by(Genus_species, Taxon_Upham_style, Loc_Ord2, Loc_bin) %>%  
+   summarise_if(is.numeric, mean, na.rm = T) %>% 
+  ungroup() %>% 
+  select(Genus_species, Taxon_Upham_style, Loc_Ord2, Loc_bin) %>% 
+  rename(label = Taxon_Upham_style)
+
+
+#species in dataset
+spp_obs <- dat$label %>% unique()
+
+
+tree <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tree <- ape::keep.tip(tree, spp_obs)
+
+tr <- tree %>% as_tibble() %>% #as.treedata()
+  #rename(Taxon_Upham_style = label) %>% 
+  full_join(dat, by = 'label') %>% as.treedata()
+
+```
+
+Viz
+
+```{r}
+p1 <-  ggtree(tr, layout="fan", open.angle=5) +  theme_tree2()
+
+
+p2 <- p1 + 
+     # new_scale_fill() + 
+      geom_fruit(
+          geom=geom_tile,
+          mapping=aes(y=label,  fill=Loc_Ord2),
+          #offset=0.08,   # The distance between external layers, default is 0.03 times of x range of tree.
+          pwidth=5 # width of the external layer, default is 0.2 times of x range of tree.
+      ) #+ 
+     #scale_fill_manual(
+     #    values=c("#339933", "#dfac03"),
+     #    guide=guide_legend(keywidth=0.5, keyheight=0.5, order=3)
+     #) 
+p2 <- p2 + geom_cladelab(node=408, 
+                   label="label", 
+                   align=TRUE,
+                   hjust=-0.3,
+                   vjust = 1,
+                   angle=315,
+                   offset.text=60, 
+                   offset = 50.5,
+                   barsize=1.5, 
+                   fontsize=4) 
+```
+
+```{r}
+#tre3 <- ggtree(tr) + theme_tree2() 
+#tre2 <- revts(tre3)
+tre3 <- ggtree(tr, layout = "fan", open.angle=6, size=0.5) 
+tre2 <- revts(tre3) 
+
+tre1 <- tre2 + 
+  geom_treescale(x=-189, y = 242, width=39, color='black', linesize = 1,  fontsize = 0) +
+  geom_treescale(x=-150, y = 242, width=50, color='grey80', linesize = 1,  fontsize = 0) +
+  geom_treescale(x=-100, y = 242, width=50, color='black', linesize = 1,  fontsize = 0) +
+  geom_treescale(x=-50, y = 242, width=50, color='grey80', linesize = 1,  fontsize = 0) 
+  
+#tre1 <- tre2 + geom_treescale(x=-190, width=5, color='red', offset = -5, linesize = 10, fontsize = 0)
+tre1 + geom_cladelab(node=408, 
+                   label="label", 
+                   align=TRUE,
+                   hjust=-0.3,
+                   vjust = 1,
+                   angle=315,
+                   offset.text=60, 
+                   offset = 50.5,
+                   barsize=1.5, 
+                   fontsize=4)
+```
+
+```{r}
+p1 <- tre1 + 
+     # new_scale_fill() + 
+      geom_fruit(
+          geom=geom_tile,
+          mapping=aes(y=label,  fill=Loc_bin),
+          offset=-0.95,   # The distance between external layers, default is 0.03 times of x range of tree.
+          pwidth=10 # width of the external layer, default is 0.2 times of x range of tree.
+      ) + scale_fill_grey(end = 0.95, start = 0)
+
+p2 <- p1 + 
+     ggnewscale::new_scale_fill() + 
+      geom_fruit(
+          geom=geom_tile,
+          mapping=aes(y=label,  fill=Loc_Ord2),
+          offset=-1.84,   # The distance between external layers, default is 0.03 times of x range of tree.
+          pwidth=10 # width of the external layer, default is 0.2 times of x range of tree.
+      ) + scale_fill_grey(end = 0.95, start = 0)
+
+p2 
+
+```
+
