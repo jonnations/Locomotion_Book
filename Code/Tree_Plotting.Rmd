@@ -101,7 +101,49 @@ tre1 + geom_cladelab(node=408,
                    fontsize=4)
 ```
 
+
+Code for 2 heatmaps
+p1 <- tre1 + 
+     # new_scale_fill() + 
+      geom_fruit(
+          geom=geom_tile,
+          mapping=aes(y=label,  fill=Loc_bin),
+          offset=-0.95,   # The distance between external layers, default is 0.03 times of x range of tree.
+          pwidth=10 # width of the external layer, default is 0.2 times of x range of tree.
+      ) + scale_fill_grey(end = 0.95, start = 0)
+
 ```{r}
+p1 <- tre1 + 
+  geom_tippoint(aes(color = Loc_bin), 
+                shape = 16, 
+                size = 3) +
+  scale_color_grey(end = 0.9, 
+                   start = 0.1, 
+                   name = "Binary\nLocomotion", 
+                   label = c("Climbing", "Non-Climbing"))
+
+p2 <- p1 + 
+  ggnewscale::new_scale_fill() + 
+  geom_fruit(
+    geom=geom_tile,
+    mapping=aes(y=label,  
+                fill=Loc_Ord2),
+    offset=-0.96,   # The distance between external layers, default is 0.03 times of x range of tree.
+    pwidth=7 # width of the external layer, default is 0.2 times of x range of tree.
+      ) + 
+  scale_fill_grey(end = 0.9, 
+                  start = 0.1, 
+                  name = "Ordinal\nLocomotion", 
+                  label = c("Inter-Substrate", "Terrestrial", "Scansorial", "Arboreal"))
+
+p2 
+
+```
+
+Try with tip labels
+
+```{r}
+
 p1 <- tre1 + 
      # new_scale_fill() + 
       geom_fruit(
