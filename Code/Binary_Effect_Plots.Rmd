@@ -190,8 +190,9 @@ ggsave(here("Plots", "Bin_Effects_All.jpg"), height = 8, width = 9)
 
 Plotting accurate predictions
 Baed on the `Binary_Prediction_Accuracy` script, these all have an accuracy over 70%. It's worth noting that all of the log-shape-ratios have not-great accuracy except lsPpl.
+
 ```{r}
-accurate = c("PES2", "HPI", "PES", "MANUS", "Ppl", "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "Mtl",  "lsPpl", "lsCl", "lsUol", "lsIsl", "lsMtl", "lsTpw" )
+accurate = c("PES2", "HPI", "PES", "MANUS", "Ppl", "Hl", "OLI", "Pipl", "MANUS2", "FEB", "Rl", "Ipl", "Uol", "Fl", "Ul", "Mtl",  "lsPpl", "lsCl", "lsUol", "lsIsl", "lsMtl", "lsTpw", "lsIpl", "lsRl", "lsUl")
 ```
 
 ```{r}
@@ -267,10 +268,8 @@ ggsave(here("Plots", "Bin_Effects_All_BW.jpg"), height = 8, width = 9)
 ### Plot Accurate Predicitons
 
 Plotting accurate predictions
-Baed on the `Binary_Prediction_Accuracy` script, these all have an accuracy over 70%. It's worth noting that all of the log-shape-ratios have not-great accuracy except lsPpl.
-```{r}
-accurate = c("PES2", "HPI", "PES", "MANUS", "Ppl", "Hl", "OLI", "Pipl", "MANUS2", "Rl", "Ipl", "Uol", "Fl", "Ul", "Mtl",  "lsPpl", "lsCl", "lsUol", "lsIsl", "lsMtl", "lsTpw" )
-```
+Based on the `Binary_Prediction_Accuracy` script, these all have an accuracy over 70%. It's worth noting that all of the log-shape-ratios have not-great accuracy except lsPpl.
+
 
 ```{r}
 ms %>% filter(var %in% accurate) %>% 
@@ -280,11 +279,8 @@ ms %>% filter(var %in% accurate) %>%
                      position = position_dodge(width = .75),
                      linewidth = 1.7) +
   geom_vline(xintercept = 0, linetype = 3) + 
-  #scale_fill_manual(values = pal) +
   scale_y_reordered("") +
   labs(x = "Phenotypic predictor effect size") +
-  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
-  #scale_color_gradientn(colours = rev(pal2)) +
   scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
                      breaks = c("lm", "gm"),
                      name = "Body Size\nMetric",
@@ -296,9 +292,7 @@ ms %>% filter(var %in% accurate) %>%
   guides(shape = guide_legend(override.aes = list(size=8)))
 
 
-ggsave(here("Plots", "B_Effects_Some_BW.pdf"), ppp, height = 3, width = 9)
-
-
+ggsave(here("Plots", "B_Effects_Some_BW.pdf"), height = 3, width = 9)
 ```
 
 ppp
@@ -307,7 +301,7 @@ grid.ls()
 
 
 
-#### Log_mass Mass Slope DF
+ Log_mass Mass Slope DF
 ```{r message = FALSE, warning=FALSE}
 #list of slopes in order of means
 nms <- lms %>% group_by(var) %>% summarise(mean = mean(val)) %>% arrange(mean) %>%  select(var)
