@@ -1,6 +1,6 @@
 ---
 title: "Binary Models"
-output: html_notebook
+#output: html_notebook
 ---
 
 # Final Version of Ordinal Models Script
@@ -9,14 +9,12 @@ Predicting ordinal climbing ranks (Arboreal, Scansorial, Terrestrial, and Inter-
 
 Ordinal Models warrant some prior testing for the prior on the thresholds. student_t(5, 0, 0.6) makes the most sense.
 
-After extensive trials, we have decided on:
-  - log-shape ratio models will not include a size covariate
-  - functional index models will not include a size covariate. Why? Testing showed that it didn't affect effect sizes or predictions. Go into detail(s) in Sup if needed. 
-  - Linear measurements will include size, both gm and log-mass (because log-mass is needed for fossil predictions unless we want to do some big missing data models?)
+After extensive trials, we have decided on: - log-shape ratio models will not include a size covariate - functional index models will not include a size covariate. Why? Testing showed that it didn't affect effect sizes or predictions. Go into detail(s) in Sup if needed. - Linear measurements will include size, both gm and log-mass (because log-mass is needed for fossil predictions unless we want to do some big missing data models?)
 
-## Preparation  
+## Preparation
 
-#### Load packages and functions  
+#### Load packages and functions
+
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
 pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
@@ -31,8 +29,10 @@ here()
 source(here("Code","Name_Change.R"))
 ```
 
-#### Load data  
+#### Load data
+
 All data loading and wrangling in `Code/Data_Load.Rmd`
+
 ```{r}
 dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
   drop_na(Loc_Ord2) %>% 
@@ -71,7 +71,8 @@ A <- ape::vcv.phylo(tr, corr = TRUE)
 
 ### Log-Mass Complete
 
-#### Prelim model  
+#### Prelim model
+
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 # prior
 
@@ -88,6 +89,7 @@ mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_st
 ```
 
 #### Run Loop
+
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 list_o_lm <- vector(mode ="list")
@@ -107,11 +109,9 @@ for(i in var_complete_linear){
 
 ```
 
-
 ### Log-Mass Missing
 
 Update cannot be used with multivatiate models. Prior must be called in the loop
-
 
 #### Run Loop
 
@@ -149,6 +149,7 @@ for(i in var_missing_linear){
 ```
 
 #### Save Models
+
 ```{r}
 list_o_lm %>% write_rds(here("Data","O_lm_mods_mis.Rds"))
 
@@ -157,10 +158,11 @@ list_o_lm %>% write_rds(here("Data","O_lm_mods_mis.Rds"))
 
 ### Geo-Mean Complete
 
-#### Prior 
+#### Prior
+
 same prior as above
 
-#### Prelim model  
+#### Prelim model
 
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 # Prior
@@ -177,6 +179,7 @@ mm <- brm(Loc_Ord2 ~ Sl + gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, c
 ```
 
 #### Run Loop
+
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 list_o_gm <- vector(mode ="list")
@@ -195,12 +198,12 @@ for(i in var_complete_linear){
 
 ```
 
-
 ### Geo-Mean Missing
 
 Update cannot be used with multivariate models. Prior must be called in the loop
 
 #### Run Loop
+
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 for(i in var_missing_linear){
@@ -241,13 +244,12 @@ for(i in var_missing_linear){
 list_o_gm %>% write_rds(here("Data","O_gm_mods_mis.Rds"))
 ```
 
-
-
 ## Ratios
 
 ### Ratios Complete
 
-#### Prelim model  
+#### Prelim model
+
 ```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
 # prior
 
@@ -264,6 +266,7 @@ mm <- brm(Loc_Ord2 ~ SI + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = 
 ```
 
 #### Run Loop
+
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 list_o_ratio <- vector(mode ="list")
@@ -283,11 +286,9 @@ for(i in var_complete_ratio){
 
 ```
 
-
 ### Ratio Missing
 
 Update cannot be used with multivatiate models. Prior must be called in the loop
-
 
 #### Run Loop
 
@@ -329,4 +330,3 @@ for(i in var_missing_ratio){
 ```{r}
 list_o_ratio %>% write_rds(here("Data","O_ratio_mods_mis.Rds"))
 ```
-

@@ -1,6 +1,6 @@
 ---
 title: "Prediction Accuracy"
-output: html_notebook
+#output: html_notebook
 ---
 
 Testing the prediction accuracy
@@ -25,8 +25,6 @@ here()
 
 var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
-
-source(here("Code","Name_Change.R"))
 ```
 
 
@@ -56,84 +54,31 @@ pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1e
 Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
 
 ```{r}
-#list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
-##purrr keep_at is great!
-#list_b2 <- list_b_lm %>% keep_at(pred_vars)
-#
-#names(list_b2)
-#
-#rm(list_b_lm)
+list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+# lm list, and add lm suffix to names
+names(list_b_lm) <- paste0(names(list_b_lm), "_lm")
 
-list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
-#purrr keep_at is great!
-list_b2i <- list_b_lm %>% keep_at(pred_vars)
+list_b_gm <- read_rds(here("Data","B_gm_mods_mis.Rds"))
+names(list_b_gm) <- paste0(names(list_b_gm), "_gm")
 
-names(list_b2i)
+list_b_ratio <- read_rds(here("Data","B_ratio_mods_mis.Rds"))
 
-rm(list_b_lm)
+list_b <- c(list_b_lm, list_b_gm, list_b_ratio) #%>% keep_at(pred_vars)
 
+names(list_b)
 
+#rm(list_b_lm, list_b_gm, list_b_ratio)
 
-#list_b_gm <- read_rds(here("Data","B_gm_mods_mis.Rds"))
-##purrr keep_at is great!
-#list_b2g <- list_b_gm %>% keep_at(pred_vars)
-#
-#names(list_b2g)
-#
-#rm(list_b_gm)
-
-list_b_gm <- read_rds(here("Data","B_gm_int_mods_mis.Rds"))
-#purrr keep_at is great!
-list_b2gi <- list_b_gm %>% keep_at(pred_vars)
-
-names(list_b2gi)
-
-rm(list_b_gm)
-# For the Fam Order models that I am not using
-
-#list_b_lm <- read_rds(here("Data","B_lm_Ord_Fam_int_mods_mis.Rds"))
-#purrr keep_at is great!
-#list_b2t <- list_b_lm %>% keep_at(pred_vars)
-
-#names(list_b2t)
-
-#rm(list_b_lm)
 ```
 
 Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
 
-# Predictions  
-
-## Fossil Functions
-```{r}
-colz <- c("Genus_species", "log_Mass", names(list_b2i), "Specimen_Num")
-
-fd <- fdat %>% select(all_of(colz))
-
-nnn <- function(mod, nm){
-  {{mod}} %>% 
-    add_epred_draws(newdata = fdat, 
-                    resp = "Locbin",
-                    value = "Prob_of_Climbing",
-                    allow_new_levels = TRUE, 
-                    re_formula = NA) %>% 
-    as.data.frame() %>% 
-    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
-    mutate(var = {{nm}})
-}
-
-```
 
 # Big accuracy function
 Should work with missing and non-missing models
 
-great, this works perfectly.
+great, this works.
 
-
-
-- update, this generates the accuracy counts perfectly. I'm interested in variation, and specific species-level predictions.
-It also takes forever.
-BUT, tidybayes and epred doesn't get predictions for species with missing measurements. And it seems to do a single prediction per species rather than one per sample??
 ```{r}
 #WITH PHYLO
 bin_pred_phy <- function(model){
@@ -146,12 +91,9 @@ bin_pred_phy <- function(model){
   select(pred) %>% 
   mutate(pred_round = round(pred, digits = 0),
          actual = {{model}}[[2]][[1]],
-         #spec = {{model}}[[2]][[]],
-        # num = dat[[7]],
          dif = abs(pred_round - actual),
         species = {{model}}[[2]]$Genus_species
-        ) #%>% 
-  #summarise(accuracy_phy = round((sum(dif == 0)/427) * 100, digits = 1))
+        ) 
   return(d2)
 }
 
@@ -172,8 +114,6 @@ bin_pred_nophy <- function(model){
   select(pred) %>% 
   mutate(pred_round = round(pred, digits = 0),
          actual = {{model}}[[2]][[1]],
-         #spec = {{model}}[[2]][[]],
-        # num = dat[[7]],
          dif = abs(pred_round - actual),
         species = {{model}}[[2]]$Genus_species)
 }
@@ -183,179 +123,51 @@ bin_pred_nophy_fn <- function(df){
   map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
 }
 
-# Order and Family
-
-# Phy is the same (all group_levels)
-
-## NO PHYLO is different
-bin_pred_tax_nophy <- function(model){
-  set.seed(124)
-  set.seed(124)
-  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = ~ (1|Order) + (1|Family), resp = 'Locbin')
-  d2 <- as.data.frame(d) %>% 
-    rename_all(.,
-               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
-                                     TRUE ~ x)) %>% 
-  select(pred) %>% 
-  mutate(pred_round = round(pred, digits = 0),
-         actual = {{model}}[[2]][[1]],
-         #spec = {{model}}[[2]][[]],
-        # num = dat[[7]],
-         dif = abs(pred_round - actual),
-        species = {{model}}[[2]]$Genus_species)
-}
-
-
-bin_pred_tax_nophy_fn <- function(df){
-  map(df, ~bin_pred_tax_nophy(.x)) %>% bind_rows()
-}
-
 ```
 
-
 ```{r}
-#df <- as.data.frame(names(list_b2)) 
-#colnames(df) <- "var"
-dfi <- as.data.frame(names(list_b2i)) 
+dfi <- as.data.frame(names(list_b)) 
 colnames(dfi) <- "var"
-#dfg <- as.data.frame(names(list_b2g)) 
-#colnames(dfg) <- "var"
-dfgi <- as.data.frame(names(list_b2gi)) 
-colnames(dfgi) <- "var"
-#dft <- as.data.frame(names(list_b2t)) 
-#colnames(dft) <- "var"
-
 ```
 
 ```{r}
-#pred1 <- map(1, ~bin_pred_phy_fn(list_b2)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(df$var, each = 427),
-#         method = 'phy',
-#         mass = 'log_mass')
-#
-#pred2 <- map(1, ~bin_pred_nophy_fn(list_b2)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(df$var, each = 427),
-#         method = 'no_phy',
-#         mass = 'log_mass')
-
-pred3 <- map(1, ~bin_pred_phy_fn(list_b2i)) %>% 
+seed = 1298
+pred1 <- map(1, ~bin_pred_phy_fn(list_b)) %>% 
   bind_rows() %>% 
   mutate(var = rep(dfi$var, each = 427),
          method = 'phy_int',
          mass = 'log_mass')
 
-pred4 <- map(1, ~bin_pred_nophy_fn(list_b2i)) %>% 
+pred2 <- map(1, ~bin_pred_nophy_fn(list_b)) %>% 
   bind_rows() %>% 
   mutate(var = rep(dfi$var, each = 427),
          method = 'no_phy_int',
          mass = 'log_mass')
 
-#pred5 <- map(1, ~bin_pred_phy_fn(list_b2g)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(dfg$var, each = 427),
-#         method = 'phy',
-#         mass = 'geo_mean')
-#
-#pred6 <- map(1, ~bin_pred_nophy_fn(list_b2g)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(dfg$var, each = 427),
-#         method = 'no_phy',
-#         mass = 'geo_mean')
 
-pred7 <- map(1, ~bin_pred_phy_fn(list_b2gi)) %>% 
-  bind_rows() %>% 
-  mutate(var = rep(dfgi$var, each = 427),
-         method = 'phy_int',
-         mass = 'geo_mean')
-
-pred8 <- map(1, ~bin_pred_nophy_fn(list_b2gi)) %>% 
-  bind_rows() %>% 
-  mutate(var = rep(dfgi$var, each = 427),
-         method = 'no_phy_int',
-         mass = 'geo_mean')
-#pred5 <- map(1, ~bin_pred_phy_fn(list_b2t)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(dft$var, each = 427),
-#         method = 'phy_tax')
-
-#pred6 <- map(1, ~bin_pred_tax_nophy_fn(list_b2t)) %>% 
-#  bind_rows() %>% 
-#  mutate(var = rep(dft$var, each = 427),
-#         method = 'no_phy_tax')
-
-preds <- bind_rows(#pred1, pred2, 
-                   pred3, pred4, 
-                   #pred5, pred6, 
-                   pred7, pred8) %>%  #, pred5, pred6) %>% 
-  write_csv(here("Data", "extant_predictions.csv"))
-preds <- read_csv(here("Data", "extant_predictions.csv"))
+preds <- bind_rows(pred1, pred2)
 ```
 
 
 ## Calculate accuracy
 
-
-
-```{r}
-tt <-preds %>% 
-    group_by(method, var, mass) %>%  
-    filter(method == "no_phy_int")  %>% filter(var == "Sl")
-```
-
 Best, in order
 ```{r}
 accuracy <- preds %>% 
   group_by(method, var, mass) %>%  
-  filter(method == "phy_int") %>% 
   summarise(accuracy = round((sum(dif == 0)/427) * 100, 
                              digits = 1)) %>% 
   select(var, accuracy, method, mass) %>% 
-  #filter(#accuracy > 70,
-  #       method %in% c('no_phy', 'no_phy_int', 'no_phy_tax')
-  #       ) %>% 
   arrange(desc(accuracy)) 
- #arrange(var, desc(accuracy)) 
-
 
 accuracy %>%
+  filter(method == "no_phy_int") %>%
   kbl() %>%
   kable_classic_2(full_width = F)
 
+accs <- accuracy %>%
+  filter(method == "no_phy_int")
+as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_list.rds"))
+
 accuracy %>% write_csv(here("Data", "Accuracy.csv"))
 ```
-
-Species-level Accuracy
-
-
-Species-means. Are these predictions better?
-
-```{r}
-pred_mean <- preds %>% 
-  group_by(species, method, mass, var, actual) %>% summarise(mean = mean(pred)) %>% 
-  mutate(pred_round = round(mean, digits = 0),
-         dif = abs(pred_round - actual))
-pred_mean
-```
-
-### How bad is each species??
-Get the worst and best prediction species for these top predictors
-PES2, MANUS, PES, Ppl, HPI, Hl, Ipl, Rl, Ul, OLI
-```{r}
-pred_mean %>% 
-  ungroup() %>% 
-  group_by(method, mass, species, var, actual, pred_round) %>% 
-  filter(dif == 1,
-         #var %in% c('PES2', 'MANUS', 'PES', 'Ppl', 'MANUS2', 'HPI', 'Hl', 'Ipl', 'Rl', 'Ul', 'OLI', "Fl"),
-         var == "PES2",
-         method %in% c('no_phy_int'),
-         mass == "log_mass") %>% 
-  count(dif) %>% 
-  arrange(method, actual, desc(n),species) %>% 
-  view()
-
-```
-
-
-Accuracy Table
