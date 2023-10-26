@@ -1,6 +1,6 @@
 ---
 title: "Binary Models"
-output: html_notebook
+#output: html_notebook
 ---
 
 # Final Version of Binary Models Script
