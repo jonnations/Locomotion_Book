@@ -99,7 +99,7 @@ bin_pred_phy <- function(model){
 
 
 bin_pred_phy_fn <- function(df){
-  map(df, ~bin_pred_phy(.x)) %>% bind_rows()
+  future_map(df, ~bin_pred_phy(.x)) %>% bind_rows()
 }
 
 
@@ -120,7 +120,7 @@ bin_pred_nophy <- function(model){
 
 
 bin_pred_nophy_fn <- function(df){
-  map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
+  future_map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
 }
 
 ```
@@ -130,13 +130,21 @@ dfi <- as.data.frame(names(list_b))
 colnames(dfi) <- "var"
 ```
 
+## Predictions  
 ```{r}
-seed = 1298
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
 pred1 <- map(1, ~bin_pred_phy_fn(list_b)) %>% 
   bind_rows() %>% 
   mutate(var = rep(dfi$var, each = 427),
          method = 'phy_int',
          mass = 'log_mass')
+
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
 
 pred2 <- map(1, ~bin_pred_nophy_fn(list_b)) %>% 
   bind_rows() %>% 
@@ -144,8 +152,27 @@ pred2 <- map(1, ~bin_pred_nophy_fn(list_b)) %>%
          method = 'no_phy_int',
          mass = 'log_mass')
 
+plan(sequential)
 
-preds <- bind_rows(pred1, pred2)
+pred <- bind_rows(pred1, pred2)
+```
+
+## Add in Multiple Regression
+```{r}
+mult <- read_rds(here("Data","B_lm_mods_multi.Rds"))[[1]]
+
+
+mpred1 <- bin_pred_phy(mult) %>% mutate(var = "mult",
+                              method = "phy_int",
+                              mass = "log_mass") 
+
+mpred2 <- bin_pred_nophy(mult) %>% mutate(var = "mult",
+                              method = "no_phy_int",
+                              mass = "log_mass") 
+
+preds <- bind_rows(pred, mpred1, mpred2)
+
+preds %>% write_rds(here("Data", "Binary_Preds.rds"))
 ```
 
 
@@ -153,15 +180,18 @@ preds <- bind_rows(pred1, pred2)
 
 Best, in order
 ```{r}
+preds <- read_rds(here("Data", "Binary_Preds.rds"))
+
 accuracy <- preds %>% 
   group_by(method, var, mass) %>%  
   summarise(accuracy = round((sum(dif == 0)/427) * 100, 
                              digits = 1)) %>% 
   select(var, accuracy, method, mass) %>% 
-  arrange(desc(accuracy)) 
+  pivot_wider(names_from  = "method", values_from = "accuracy") %>% 
+  mutate(dif = phy_int - no_phy_int) %>% 
+  arrange(desc(no_phy_int)) 
 
 accuracy %>%
-  filter(method == "no_phy_int") %>%
   kbl() %>%
   kable_classic_2(full_width = F)
 
@@ -171,3 +201,73 @@ as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_list.rds"))
 
 accuracy %>% write_csv(here("Data", "Accuracy.csv"))
 ```
+
+
+## Biggest Diffs between Phy and no phy
+
+```{r}
+accuracy %>% 
+  pivot_wider(names_from  = "method", values_from = "accuracy") %>% 
+  mutate(dif = phy_int - no_phy_int) %>% view()
+  
+```
+
+
+## 2 Covariate Mult Mod
+
+
+```{r}
+list_m <- read_rds(here("Data","B_lm_mods_multi.Rds"))
+```
+
+Testing the predictive accuracy of the two covariate model used in the T. wilsoni predictions. 
+
+```{r}
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+pred1 <- map(1, ~bin_pred_phy_fn(list_m)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(sprintf("m_%d",seq(1:11)), each = 427),
+         method = 'phy_int',
+         mass = 'log_mass')
+
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+pred2 <- map(1, ~bin_pred_nophy_fn(list_m)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(sprintf("m_%d",seq(1:11)), each = 427),
+         method = 'no_phy_int',
+         mass = 'log_mass')
+
+plan(sequential)
+
+m_pred <- bind_rows(pred1, pred2)
+```
+
+```{r}
+accuracy <- m_pred %>% 
+  group_by(method, var, mass) %>%  
+  summarise(accuracy = round((sum(dif == 0)/427) * 100, 
+                             digits = 1)) %>% 
+  select(var, accuracy, method, mass) %>% 
+  arrange(desc(accuracy)) 
+
+accuracy %>%
+  #filter(method == "no_phy_int") %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
+
+accs <- accuracy %>%
+  #filter(method == "no_phy_int") %>% 
+as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_mult_list.rds"))
+
+accuracy %>% write_csv(here("Data", "Accuracy_mult.csv"))
+```
+
+```
+
+

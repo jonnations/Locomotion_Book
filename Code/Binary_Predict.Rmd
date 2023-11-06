@@ -22,7 +22,6 @@ var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
 nms <- read_rds(here("Data", "Order_Names.Rds"))
 
-source(here("Code","Name_Change.R"))
 
 #Color palette
 pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
@@ -336,7 +335,7 @@ hplot <- function(groups, method){
 
 ```{r}
 hplot(old, "Fossil") + 
-  ggtitle("Mesozoic Mammal Predictions") + 
+  ggtitle("Mesozoic Therian Predictions") + 
   theme(#axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank(),
@@ -347,7 +346,7 @@ hplot(old, "Fossil") +
 ### Big Plot
 ```{r}
 pl5 <- hplot(old, "Fossil") + 
-  ggtitle("Mesozoic Mammal Predictions") + 
+  ggtitle("Mesozoic Therian Predictions") + 
   theme(axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank(),
@@ -360,7 +359,7 @@ pl6 <- hplot(multi, "Fossil") +
   labs(y = "Probability", x = "")
 
 pl7 <- hplot(primate, "Fossil") + 
-  ggtitle("Primate Predicitons") + 
+  ggtitle("Plesiadapiform Predicitons") + 
   theme(#axis.text.x = element_blank(),
         plot.margin = unit(c(0, 0, 0, 0), "lines"),
         axis.title.y = element_blank())
@@ -371,7 +370,7 @@ t3 <- pl5 / pl6 /pl7
 t3
 
 ggsave(here("Plots", "Bin_Pred_Fossil.pdf"), height = 8, width = 13)
-
+ggsave(here("Plots", "Bin_Pred_Fossil.jpg"), height = 8, width = 13)
 ```
 
 
@@ -405,16 +404,17 @@ t1 <- pl1 / pl2 + plot_layout(guides = "collect")
 
 t2 <- pl3 / pl4 + plot_layout(guides = "collect")
 
-wrap_plots(t1, t2, ncol = 1)
+wrap_plots(t1, t2, ncol = 1) + plot_annotation(tag_levels = "a")
 
 ggsave(here("Plots", "Bin_Pred_Extant.pdf"), height = 10, width = 13)
-
+ggsave(here("Plots", "Bin_Pred_Extant.jpg"), height = 10, width = 13)
 ```
 
 ```{r}
 pl2 / pl4 + plot_layout(guides = "collect")
 
 ggsave(here("Plots", "Bin_Pred_Extant2.pdf"), height = 6, width = 13)
+ggsave(here("Plots", "Bin_Pred_Extant2.jpg"), height = 6, width = 13)
 ```
 
 
@@ -423,6 +423,7 @@ ggsave(here("Plots", "Bin_Pred_Extant2.pdf"), height = 6, width = 13)
 wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
 
 ggsave(here("Plots", "Bin_Pred_All.pdf"), height = 16, width = 13)
+ggsave(here("Plots", "Bin_Pred_All.jpg"), height = 16, width = 13)
 ```
 
 # Black and White Plot
