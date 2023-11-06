@@ -17,7 +17,8 @@
 *.pdf
 #jpg plots (png ok)
 *.jpg  
-
+Bin_Effects_All.jpg
+Bin_Effects_All_BW.jpg
 All_Predictions.csv
 Fossil_Predictions.csv
 All_Int_Predictions.csv
