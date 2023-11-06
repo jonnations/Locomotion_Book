@@ -23,8 +23,6 @@ var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
 nms <- read_rds(here("Data", "Order_Names.Rds"))
 
-source(here("Code","Name_Change.R"))
-
 
 ```
 
@@ -572,7 +570,7 @@ p1+p2 + plot_annotation(title = "Extant Predicitons With Phylogenetic Informatio
   theme(legend.position='bottom')
 
 ggsave(here("Plots", "Predict_Ord_Extant_Full.pdf"), width = 8.5, height = 12)
-  
+ggsave(here("Plots", "Predict_Ord_Extant_Full.jpg"), width = 8.5, height = 12)  
 ```
 
 ### Fossil
@@ -639,7 +637,7 @@ p1+p2 + plot_annotation(title = "Extant Predicitons Without Phylogenetic Informa
   theme(legend.position='bottom')
 
 ggsave(here("Plots", "Predict_Ord_Extant_Fossil.pdf"), width = 8.5, height = 12)
-  
+ggsave(here("Plots", "Predict_Ord_Extant_Fossil.jpg"), width = 8.5, height = 12)
 ```
 
 
@@ -720,11 +718,13 @@ p2 <- pred_all %>%
   scale_y_discrete(limits=rev) +
   facet_wrap(~Genus_species, ncol = 5)
 
-p1/p2 + plot_annotation(title = "Predicitons for species with known locomotor rankings without phylogenetic information", subtitle = "Top row are arboreal except for scansorial Tupaia\nBottom row are inter-substrate except for terrestrial hedgehog & opossum" ) + plot_layout(guides = "collect") &
+p1/p2 + #plot_annotation(title = "Predicitons for species with known locomotor rankings without phylogenetic information", 
+                        #subtitle = "Top row are arboreal except for scansorial Tupaia\nBottom row are inter-substrate except for terrestrial hedgehog & opossum" ) + 
+  plot_layout(guides = "collect") &
   theme(legend.position='bottom')
 
 ggsave(here("Plots", "Ord_Pred_Extant2.pdf"), width = 11, height = 8)
-  
+ggsave(here("Plots", "Ord_Pred_Extant2.jpg"), width = 11, height = 8)
 ```
 
 
@@ -847,126 +847,6 @@ p1/p2 / p3 + plot_annotation(title = "Fossil Predicitons from Ranked-Ordinal Mod
   theme(legend.position='bottom')
 
 ggsave(here("Plots", "Ord_Pred_Fossil.pdf"), width = 10, height = 10)
-  
+ggsave(here("Plots", "Ord_Pred_Fossil.jpg"), width = 10, height = 10) 
 ```
 
-
-
-# Whole Shebang
-
-### function
-
-```{r}
-pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
-# shading
-shades <- data.frame(xmin=seq(1.5,13-1.5, 2),
-                     xmax=seq(2.5,13+.5, 2),
-                     ymin=0, ymax=Inf)
-
-hplot <- function(groups, method){
-  pred_all %>% filter(Genus_species %in% {{groups}},
-                         method == {{method}}) %>% 
-    mutate(var =  as.factor(var)) %>% 
-  ggplot(aes(y = Prob_of_Climbing, 
-             x = fct_relevel(var,var_acc), 
-             #y = var,
-             color = Genus_species)) +
-  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
-  stat_pointinterval(.width = c(0.5, 0.68268), 
-                     #linewidth = c(0.75, 0.5), 
-                     position = position_dodge(width = -.6)) + ylim(0,1) +
-    labs(x = "", y = "Probability of Climbing") +
-  scale_color_manual(values = pal) + theme_pander(gM = F) + 
-    geom_rect(inherit.aes = F, 
-              data = shades, 
-              mapping = aes(xmin=xmin, 
-                            xmax=xmax, 
-                            ymin = ymin, 
-                            ymax = ymax), 
-              alpha = 0.125) +
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7))
-}
-
-```
-
-### big df
-
-### Big Plot
-
-```{r}
-pl5 <- hplot(old, "Fossil") + 
-  ggtitle("Mesozoic Mammal Predictions") + 
-  theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank(),
-        panel.grid.major.y = element_blank())
-
-pl6 <- hplot(multi, "Fossil") + 
-  ggtitle("Multituberculate Predicitons") + 
-  theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
-
-pl7 <- hplot(primate, "Fossil") + 
-  ggtitle("Primate Predicitons") + 
-  theme(#axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
-
-
-t3 <- pl5 / pl6 /pl7
-
-t3
-
-ggsave(here("Plots", "Predict_Ord_Int_Fossil.pdf"), height = 8, width = 13)
-
-```
-
-```{r}
-pl1 <- hplot(extant_climb, "Full") + 
-  ggtitle("Extant Climb Full Predictions") + 
-  theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
-
-pl2 <- hplot(extant_climb, "Fossil") + 
-  ggtitle("Extant Climb Fossil") + 
-  theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
-
-pl3 <- hplot(extant_ground, "Full") + 
-  ggtitle("Extant Ground Full Predictions") + 
-  theme(axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank())
-
-pl4 <- hplot(extant_ground, "Fossil") + 
-  ggtitle("Extant Ground Fossil") + 
-  theme(#axis.text.x = element_blank(),
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),)
-
-
-t1 <- pl1 / pl2 + plot_layout(guides = "collect")
-
-t2 <- pl3 / pl4 + plot_layout(guides = "collect")
-
-wrap_plots(t1, t2, ncol = 1)
-
-ggsave(here("Plots", "Predict_Int_Extant.pdf"), height = 10, width = 13)
-
-```
-
-```{r}
-pl2 / pl4 + plot_layout(guides = "collect")
-
-ggsave(here("Plots", "Predict_Int_Extant2.pdf"), height = 6, width = 13)
-```
-
-```{r}
-wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
-
-ggsave(here("Plots", "Predict_Int_All.pdf"), height = 16, width = 13)
-```
