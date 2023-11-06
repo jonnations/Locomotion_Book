@@ -171,7 +171,7 @@ p1 = c(prior(student_t(5, 0, 0.6), class = Intercept),
        prior(normal(0, 0.3), class = sd))
 
 #initial fit
-mm <- brm(Loc_Ord2 ~ Sl + gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+mm <- brm(Loc_Ord2 ~ Sl + log_gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
           data2 = list(A = A),
           family = cumulative(),
           data = dat, refresh = 0, cores = 4,
@@ -185,7 +185,7 @@ mm <- brm(Loc_Ord2 ~ Sl + gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, c
 list_o_gm <- vector(mode ="list")
 
 for(i in var_complete_linear){
-  list_o_gm[[i]]<- update(mm, formula=(paste0("Loc_Ord2 ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+  list_o_gm[[i]]<- update(mm, formula=(paste0("Loc_Ord2 ~", i, "+log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
                          family = cumulative(),
                          newdata=dat,
                          refresh = 0,
@@ -207,8 +207,8 @@ Update cannot be used with multivariate models. Prior must be called in the loop
 ```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
 
 for(i in var_missing_linear){
-  ord_mod <-  bf(paste0("Loc_Ord2 ~ mi(", i, ")+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + cumulative()
-  imp_mod <- bf(paste0(i,"| mi() ~ gm + Sl +  
+  ord_mod <-  bf(paste0("Loc_Ord2 ~ mi(", i, ")+log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + cumulative()
+  imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
        Hl + Hsw + Hdw + Uol + Ul + Rl + 
        Fl + Fsw + Fdw + Tl + Tmw + 
        (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()

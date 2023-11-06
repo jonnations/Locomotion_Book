@@ -15,8 +15,12 @@
 *.Rds
 #pdf plots (png ok)
 *.pdf
+#jpg plots (png ok)
+*.jpg
 All_Predictions.csv
 Fossil_Predictions.csv
 All_Int_Predictions.csv
 Fossil_Int_Predictions.csv
 extant_predictions.csv
+Ordinal_Preds.csv
+extant_ordinal_predicitons.csv
