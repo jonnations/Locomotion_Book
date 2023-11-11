@@ -1,0 +1,223 @@
+---
+title: "First Glimpse of Data"
+output: html_document
+---
+
+Loading up the data for some preliminary analyses of the binary climb/no-climb categories.
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+```
+
+### Load data  
+### Load data  
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "G",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "Sf",
+                              Loc_mode_Ordinal == "Sf" ~ "Sf",
+                              Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("G","A","Sc","T","Sf","Ss")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+What does the missing data look like?\
+You can scroll through the table below to see
+
+```{r  echo = FALSE}
+n = nrow(dat)
+
+dat %>% select(19:95) %>% 
+  summarise_all((~ sum(is.na(.)))) %>% 
+  mutate_if(is.double, ~ n - .) %>% 
+  pivot_longer(everything(), names_to = "measurement", values_to = "count_missing") %>% arrange(desc(count_missing), measurement) %>% 
+  mutate(percent_missing = round(count_missing / n, digits = 3)) %>% 
+  kbl(caption = "Percentage of Missing Data") %>% 
+  kable_classic(full_width = F, html_font = "Cambria") %>% 
+  scroll_box(width = "500px", height = "200px")
+```
+
+#### Binary Climb/No Climb Models
+
+Preliminary data analysis, looping over all of the variables to see which ones do a good job predicting the binary tree vs. no-tree categorization
+
+These are [very]{.underline} preliminary, and the results will become more nuanced and probably more confusing, but it can at least give us a sense of which measurements are informative of climbing.
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+mm <- brm(
+  #Loc_bin ~ Sl + log_Mass + (1 | Genus_species),
+  Loc_bin ~ Sl + log_Mass,
+           family = bernoulli(),
+           data = dat, refresh = 0)
+```
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+
+varis <- colnames(dat)[19:93]
+
+fit_list <- vector(mode ="list", length = 77)
+
+for(i in varis){
+  fit_list[[i]]<- update(mm,
+                         #formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)")),
+                         formula=(paste0("Loc_bin ~", i, "+log_Mass")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0
+                         ) 
+}
+
+fit_list2 <- fit_list[78:152]
+rm(fit_list)
+```
+
+Here are all the model plots. On the y axis, 1 is TREE, 0 is NO TREE. The x axis is the phenotype, mean centered on 0 and scaled to a standard deviation of 1. All of the linear measurements are log transformed prior to mean-centering. All the models include log_mass as a variable, meaning that they are "***size corrected***" representations of the effect of the phenotype on climbing. What we are looking for is a slope that ranges across the whole y axis, meaning that it touches the 1 and 0, and has a steep slope (either up or down). To interpret, look at the 3rd plot, ***Hl***. As Hl increases, the probability of being ***TREE*** increases, or, the longer the humerus, the more likely to climb!
+
+Here are some standouts: (*remember, these are log-transformed and size-corrected effect sizes*)
+
+-   humeral length (Hl)\
+-   Olecranon length (Uol)\
+-   Ulnar length (Ul)\
+-   Radius length (Rl)\
+-   Femur length (Fl)\
+-   Proximal phalanx of the manus length (Ppl)\
+-   Intermediate phalanx of the manus length (Ppl)\
+-   Olecranon Length Index (OLI)\
+-   MANUS and MANUS2 indices (#2 includes the intermediate phalanx)
+-   PES and PES2
+
+```{r message = FALSE, warning=FALSE, cache=TRUE}
+for(i in fit_list2){
+ plots <- plot(conditional_effects(i), plot=F, points = T)[[1]]
+ print(plots + theme_bw())
+}
+
+```
+
+
+## First Look with Intraspecific Variation
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+#dat %>% group_by(Genus_species) %>% count() %>% arrange(desc(n))
+```
+
+Repeating above, but with Species as a group-level effect. 
+There are a total of 243 species, and 57 have more than one sample. 
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+priors = c(prior(normal(0, 1.5), class = Intercept),
+                prior(normal(0, 1.5), class = b),
+                prior(normal(0, 1.5), class = sd))
+#initial fit
+mm2 <- brm(
+  Loc_bin ~ Sl + log_Mass + (1 | Genus_species),
+  #Loc_bin ~ Sl + log_Mass,
+  family = bernoulli(),
+  prior = priors,
+  data = dat, cores = 4, refresh = 0, seed = 1234)
+
+varis <- colnames(dat)[19:93]
+
+fit_list <- vector(mode ="list", length = 77)
+
+for(i in varis){
+  fit_list[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)")),
+                         #formula=(paste0("Loc_bin ~", i, "+log_Mass")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         prior = priors,
+                         seed = 1234
+                         ) 
+}
+
+fit_list3 <- fit_list[78:152]
+rm(fit_list)
+```
+
+Plots
+```{r message = FALSE, warning=FALSE, cache=TRUE}
+for(i in fit_list3){
+ plots <- plot(conditional_effects(i), plot=F, points = T)[[1]]
+ print(plots + theme_bw())
+}
+```
+

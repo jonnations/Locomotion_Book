@@ -1,0 +1,395 @@
+---
+title: "The Most Arboreal"
+output: html_notebook
+---
+
+Are all of the arboreal measurements tightly linked? Or are we picking up different species with different measurements? Simple question, but it could have a large impact on our message. 
+
+
+The results are quite surprising. 
+
+Load everything up
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+nms <- read_rds(here("Data", "Order_Names.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+### Load Extant data  
+
+
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "B",
+                              Loc_mode_Ordinal == "Sf" ~ "B",
+                              Loc_mode_Ordinal == "Ss" ~ "B",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate(Fos = FALSE)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
+```
+
+## Correlations
+
+Start Simple. Which of our important measurements are the most correlated? Are they all highly correlated?
+
+```{r}
+sigs <- c("HPI", "Ipl", "MANUS", "MANUS2", "MRI", "Mtl", "PES", "PES2", "PRTI", "Ppl","CI", "FEB", "Fl", "FRI", "HEB", "HRI", "Hl", "IM",  "OLI", "Rl", "TRI", "Ul", "Uol")
+
+#Just positive values, or things that increase with climbing
+pos_sigs <- c("MANUS", "MANUS2", "PES", "PES2", "IM", "Ppl", "Fl",  "Hl",  "Rl",  "Ul",  "Ipl")
+```
+
+From here: http://www.sthda.com/english/wiki/ggplot2-quick-correlation-matrix-heatmap-r-software-and-data-visualization
+```{r}
+dat %>% select(pos_sigs) %>% 
+  drop_na() %>% 
+  cor() %>% 
+  round(2) %>% 
+  reshape2::melt() %>% 
+  ggplot(aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + scale_fill_viridis_c()
+```
+
+So... Yes, sorta. These measurements are somewhat correlated, though the indices are not correlated with linear measurements. Linear measurements are correlated, which, ignoring mass, makes sense. Interestingly, PES and MANUS are not super tightly correlated. This is also another good sign that the indices are removing mass from the equation.
+
+## Predictions
+
+Predict the climbing behavior of each species for each measurement. Then select the highest (or lowest) species for each measurement. See how overlapping they are. 
+
+```{r}
+list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds")) 
+#purrr keep_at is great!
+list_b2 <- list_b_lm %>% keep_at(sigs)
+
+names(list_b2)
+
+rm(list_b_lm)
+```
+```{r}
+colz <- c("Genus_species", "Taxon_Upham_style", "log_Mass", "Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2", "Ipl", "PES", "Pppl", "Mtl", "MANUS", "Ppl", "Mcl", "PRTI", "Tpw", "Isl", "Il", "Pel", "Hpw", "HPI", "Mcw", "MRI", "Ppw", "PES2", "Cl")
+
+fd <- dat %>% select(colz)
+
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    resp = c("Locbin"),   
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    mutate(var = {{nm}})
+}
+
+```
+
+```{r}
+nm <- names(list_b2)
+pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() 
+```
+
+Top species by variable
+```{r}
+fm <- dat %>% select(Genus_species, Family)
+
+pred_df %>%  group_by(Genus_species, var) %>% 
+  summarise(m_prob = median(Prob_of_Climbing),
+            m_prob = round(m_prob, digits = 3)) %>% ungroup() %>% 
+  group_by(var) %>% arrange(var, .by_group = TRUE) %>%
+  top_n(24) %>% group_by(var) %>% arrange(desc(m_prob), .by_group = TRUE) %>% left_join(fm, by = 'Genus_species', multiple = 'any') %>%  write_csv(here("Data", "Top_Arboreal_Probs.csv")) %>% view()
+
+pred_df %>%  group_by(Genus_species, var) %>% 
+  summarise(m_prob = median(Prob_of_Climbing),
+            m_prob = round(m_prob, digits = 3)) %>% ungroup() %>% 
+  group_by(var) %>% arrange(var, .by_group = TRUE) %>%
+  top_n(24) %>% group_by(var) %>% arrange(desc(m_prob), .by_group = TRUE) %>% left_join(fm, by = 'Genus_species', multiple = 'any') %>%  group_by(var) %>% count(Family) %>% count(var) %>% write_csv(here("Data", "Top_Arboreal_Fams.csv"))
+
+#pr_df2 <- pred_df %>%  group_by(Genus_species, var) %>% 
+#     summarise(m_prob = mean(Prob_of_Climbing),
+#               m_prob = round(m_prob, digits = 3)) %>% ungroup() %>% 
+#     group_by(var) %>% arrange(var, .by_group = TRUE) %>%
+#     top_n(24) %>% group_by(var) %>% arrange(desc(m_prob), .by_group = TRUE) %>% #select(!m_prob) %>%  view()
+#  #select(-Restaurant)
+#  
+#dmy <- dummyVars(" ~ var", data = pr_df2)
+#data.frame(predict(dmy, newdata = pr_df2)) %>% view()
+#  
+#  
+#table() %>% as.data.frame.matrix(row.names = TRUE) %>% write_csv(here("Data", "Top_Arboreal_Table.csv")) %>% view()
+```
+
+```{r}
+pr_df2 %>% pivot_wider(names_from = var, values_from = Genus_species)
+```
+
+
+
+```{r}
+fm <- dat %>% select(Genus_species, Family)
+
+pred_df %>%  group_by(Genus_species, var) %>% 
+  summarise(m_prob = mean(Prob_of_Climbing),
+            m_prob = round(m_prob, digits = 3)) %>% ungroup() %>% 
+  group_by(var) %>% arrange(var, .by_group = TRUE) %>%
+  top_n(24) %>% ungroup() %>% count(Genus_species) %>% left_join(fm, by = 'Genus_species', multiple = 'any') %>% arrange(desc(n)) %>% write_csv(here("Data", "Top_Arboreal_Counts.csv")) %>% view()
+```
+
+
+```{r}
+m_man2 =list_b2$Ppl
+
+#fd = fd %>% drop_na() %>% filter(!Genus_species == 'Urocyon_cinereoargenteus')
+m_man2 %>%  add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                     resp = "Locbin",   
+                    allow_new_levels = TRUE) %>% as.data.frame() %>% 
+  #mutate(ttt = inv_logit_scaled(Prob_of_Climbing)) %>% 
+  mutate(ttt = Prob_of_Climbing) %>% 
+  select(Family, Genus_species, Prob_of_Climbing, ttt) %>% group_by(Family, Genus_species) %>% summarise(mns =  median(ttt, na.rm = TRUE)) %>% view()
+
+```
+This is so weird
+```{r}
+list_b_lm$OLI %>% 
+    add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    resp = c("Locbin"),   
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    mutate(var = 'OLI') %>% 
+  group_by(Genus_species) %>% 
+  summarise(mns =  mean(Prob_of_Climbing),
+            meds = median(Prob_of_Climbing)) %>% view()
+```
+
+Plot
+```{r}
+list_b2$MANUS %>% 
+    add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    resp = c("Locbin"), 
+                    re_formula = NULL,
+                    allow_new_levels = TRUE,
+                    
+                    ) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5))
+  
+```
+
+What the fuck!
+
+Run this from scratch, try a few models and see. THis SHOULD BE A 1!!!
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+
+p1 = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(normal(0, 1), class = sd))
+
+p2 = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b))
+
+m1 <- brm(Loc_bin ~ OLI + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1,
+                         seed = 145)
+
+m2 <- brm(Loc_bin ~ OLI +  (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+
+m3 <- brm(Loc_bin ~ OLI + log_Mass + (1 | Genus_species),
+          #data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+
+m4 <- brm(Loc_bin ~ OLI ,
+          #data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p2)
+
+m5 <- brm(Loc_bin ~ OLI + log_Mass +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+
+m6 <- brm(Loc_bin ~ OLI +   (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+
+
+```{r}
+p1 <- m1 %>% add_epred_draws(newdata = dat, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    resp = c("Locbin"),
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("Full Model")
+
+p2 <- m2 %>% add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("Full Model no mass")
+
+p3 <- m3 %>% add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("full no phylo")
+
+p4 <- m4 %>% add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("just OLI")
+
+p5 <- m5 %>% add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("Full Model no species")
+
+p6 <- m6 %>% add_epred_draws(newdata = fd, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("OLI + phylo")
+
+p7 <- list_b_lm$OLI %>% add_epred_draws(newdata = dat, 
+                    value = "Prob_of_Climbing",
+                    re_formula = NULL,
+                    allow_new_levels = TRUE) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    filter(Genus_species %in% c("Cynocephalus_volans", "Galeopterus_variegatus")) %>% 
+  ggplot(aes(y = Genus_species, x = Prob_of_Climbing)) +
+  stat_halfeye(.width = c(.90, .5)) + ggtitle("OLI + phylo")
+
+(p1 | p2) / (p3 | p4) / (p5 | p6)
+
+p7 / p1
+
+```
+

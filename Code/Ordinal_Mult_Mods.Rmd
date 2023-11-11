@@ -1,0 +1,816 @@
+---
+title: "Ordinal Multiple Predictors"
+#output: html_notebook
+---
+
+Same as `Binary_Mult_Mods.Rmd` but for the ordinal models
+
+# Preparation  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggpattern, magick)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  drop_na(Loc_Ord2) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+## Model Fits
+I'm taking the list of present and missing variables from the `Binary_Mult_Mods.Rmd` script.
+
+### Model1
+
+#### J. kielanae
+#### P. cookei
+#### All Extant
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+ord_mod <-  bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(HPI) + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+  
+PES2_mod <- bf(PES2| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+MANUS_mod <- bf(MANUS| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+PES_mod <- bf(PES| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+Ppl_mod <- bf(Ppl| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+MANUS2_mod <- bf(MANUS2| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+HPI_mod <- bf(HPI| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+Ipl_mod <- bf(Ipl| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+Pipl_mod <- bf(Pipl| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+
+m_form <- ord_mod + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
+  
+pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "student_t(5, 0, 0.6)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+mod1 <- brm(m_form,
+                    data=dat,
+                    refresh = 0,
+                    cores = 4,
+                    data2 = list(A = A),
+                    prior = pri,
+                    seed = 145,
+                    control=list(max_treedepth=15)
+               )
+```
+
+
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+prio <- function(mod){
+  get_prior({{mod}},
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+}
+```
+
+
+### Model 2
+No HPI
+#### S. szalayi
+#### E. scansoria
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod2 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+
+m2_form <- ord_mod2 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
+                    
+pri = prio(m2_form)
+
+mod2 <- brm(m2_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+
+## Model 3 
+No PES2, HPI, PES
+#### A. zhoui
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod3 <-  bf(Loc_Ord2 ~  mi(MANUS) +  mi(Ppl) + mi(MANUS2)  + mi(Ipl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m3_form <- ord_mod3 +  MANUS_mod  + Ppl_mod + MANUS2_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
+           
+pri = prio(m3_form)
+
+mod3 <- brm(m3_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+##Model 4 
+no HPI, Ipl, MANUS2
+#### R. eurasiaticus
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod4 <- bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m4_form <- ord_mod4 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + Pipl_mod + set_rescor(FALSE)
+            
+pri = prio(m4_form)
+
+mod4 <- brm(m4_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+## Model 5 
+no PES2, PES, Pipl
+#### I. clarkforkensis
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod5 <-  bf(Loc_Ord2 ~  mi(MANUS) +  mi(Ppl) + mi(MANUS2) + mi(HPI) + mi(Ipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m5_form <- ord_mod5  + MANUS_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + set_rescor(FALSE)
+           
+pri = prio(m5_form)
+
+mod5 <- brm(m5_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+
+#### Model 6 
+no HPI, OLI, Uol, Ul
+#### D. szalayi
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod6 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(MANUS) + mi(PES) + mi(Ppl) + mi(MANUS2) +  mi(Ipl) + mi(Pipl) + Hl + Rl  + Fl  + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m6_form <- ord_mod6 + PES2_mod + MANUS_mod + PES_mod + Ppl_mod + MANUS2_mod + HPI_mod + Ipl_mod + Pipl_mod + set_rescor(FALSE)
+           
+pri = prio(m6_form)
+
+mod6 <- brm(m6_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+## Model 7
+#### K. dashzevegi
+no MANUS, Ppl, MANUS2, Ipl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod7 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + mi(HPI) + mi(Pipl) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m7_form <- ord_mod7 + PES2_mod +  PES_mod  + HPI_mod  + Pipl_mod + set_rescor(FALSE)
+         
+pri = prio(m7_form)
+
+mod7 <- brm(m7_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+
+## Model 8
+#### J. sinensis
+#### C. jiufotangensis
+no PES, HPI, PES2, Pipl, Fl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod8 <-  bf(Loc_Ord2 ~  mi(MANUS) + mi(Ppl) + mi(MANUS2) + mi(Ipl) + Hl + Rl + Ul + Uol + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m8_form <- ord_mod8 + MANUS_mod + Ppl_mod + MANUS2_mod + Ipl_mod + set_rescor(FALSE)
+         
+pri = prio(m8_form)
+
+mod8 <- brm(m8_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+## Model 9
+#### F. primaevus
+No PES2, PES, MANUS, Ppl, MANUS2, Pipl
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod9 <-  bf(Loc_Ord2 ~  mi(HPI) + Hl + Rl + Ul + Uol + Fl + OLI + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m9_form <- ord_mod9 +  HPI_mod + set_rescor(FALSE)
+           
+pri = prio(m9_form)
+
+mod9 <- brm(m9_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+## Model 10
+#### P. kummae
+No HPI, MANUS, Ppl, Hl, OLI, MANUS2, Rl, Ipl, Uol, Ul
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod10 <-  bf(Loc_Ord2 ~ mi(PES2) + mi(PES) + mi(Pipl) + Fl +  log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m10_form <- ord_mod10 + PES2_mod +  PES_mod + Pipl_mod + set_rescor(FALSE)
+           
+pri = prio(m10_form)
+
+mod10 <- brm(m10_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+
+## Model 11
+#### T. wilsoni
+only Ppl and Uol
+```{r  message = FALSE, warning=FALSE, include = FALSE}
+ord_mod11 <- bf(Loc_Ord2 ~  mi(Ppl) + Uol + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style,cov = A))) + cumulative()
+
+m11_form <- ord_mod11 + Ppl_mod + set_rescor(FALSE)
+           
+pri = prio(m11_form)
+
+mod11 <- brm(m11_form, data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = pri, seed = 145, control=list(max_treedepth=15)
+               )
+```
+
+## Save Models
+```{r}
+list_o2 <- lst(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11) %>% write_rds(here("Data","O_lm_mods_multi.Rds"))
+```
+
+
+
+#####################################
+
+#NOW TO PREDICT ONE BY ONE
+
+#####################################
+
+
+# Predicting climbing from fossil data:
+
+Take model lists, then use them one by one to predict climbing in the fossil taxa.
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+nms <- read_rds(here("Data", "Order_Names.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+
+```
+
+
+### Load Data  
+
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv"))
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+#variables to do fossil predictions with
+pred_vars <- fdat_cln[c(9:84)]
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+```
+
+### Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+#list_b_lm <- read_rds(here("Data","B_lm_int_mods_mis.Rds"))
+#purrr keep_at is great!
+list_b2 <- lst(read_rds(here("Data","O_lm_multi_1.Rds")),
+               read_rds(here("Data","O_lm_multi_2.Rds")),
+               read_rds(here("Data","O_lm_multi_3.Rds")),
+               read_rds(here("Data","O_lm_multi_4.Rds")),
+               read_rds(here("Data","O_lm_multi_5.Rds")),
+               read_rds(here("Data","O_lm_multi_6.Rds")),
+               read_rds(here("Data","O_lm_multi_7.Rds")),
+               read_rds(here("Data","O_lm_multi_8.Rds")),
+               read_rds(here("Data","O_lm_multi_9.Rds")),
+               read_rds(here("Data","O_lm_multi_10.Rds")),
+               read_rds(here("Data","O_lm_multi_11.Rds")))
+
+```
+Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
+# Predictions  
+
+# Extant Functions
+
+```{r}
+extant_climb <- c("Caluromys_derbianus", "Tamiasciurus_douglasii","Tupaia_glis", "Cynocephalus_volans", "Glaucomys_sabrinus")
+
+extant_ground <- c("Solenodon_paradoxus", "Atelerix_albiventris",     "Sorex_trowbridgii", "Thomomys_bottae", "Monodelphis_domestica")
+
+old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
+
+multi <- c("Rugosodon_eurasiaticus", "Jeholbaatar_kielanae", "Filikomys_primaevus", "Ptilodus_kummae", "Kryptobaatar_dashzevegi")
+
+primate <- c("Plesiadapis_cookei", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
+
+spec_num = rep(1:18)
+
+model_dat <- dat %>% filter(Genus_species %in% c(extant_climb, extant_ground))  %>%  group_by(Genus_species, Taxon_Upham_style) %>%  summarise_at(14:93, mean, na.rm = T)
+
+```
+
+## Extant
+
+```{r}
+## Full Predictions
+
+d <- read_rds(here("Data","O_lm_multi_1.Rds")) %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NULL) %>% 
+    as.data.frame() %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species',  '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_full <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  ) %>% mutate(method = "Full",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+d <- read_rds(here("Data","O_lm_multi_1.Rds")) %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
+    select('Genus_species', '.draw', '.category', 'Prob_of_Climbing') %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+  
+pred_df_ext_fos <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id') %>% 
+  mutate(method = "Fossil",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+```
+
+
+
+## Extinct
+
+```{r}
+pred_ext <- function(mod, dat){
+ d <-  {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+  select(Genus_species,.draw, .category, Prob_of_Climbing) %>% 
+    arrange(Genus_species, .draw, .category) %>% 
+    pivot_wider(names_from = .category, 
+                values_from = Prob_of_Climbing,
+                #VERY IMPORTANT!!!!
+                values_fn = list) %>% 
+  # SECOND IMPORTANT THING!!
+  unnest(cols = everything()) %>% 
+    mutate(.draw = as.factor(.draw)) %>% 
+    rename(P1 = "A",
+           P2 = "Sc",
+           P3 = "T",
+           P4 = "B") %>% 
+    mutate(
+           wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+ 
+ d2 <- d %>% rownames_to_column('id') %>%
+  left_join(
+    d %>% 
+      rownames_to_column('id') %>%
+      gather(max_rank, max_prob, P1:P4) %>% 
+      group_by(id) %>% 
+      slice(which.max(max_prob)) %>% select(id, max_rank, max_prob), 
+    by = 'id'
+  )
+}
+
+
+df1 <- pred_ext(read_rds(here("Data","O_lm_multi_1.Rds")), fdat %>% filter(Genus_species %in% c('Jeholbaatar_kielanae', 'Plesiadapis_cookei')))
+
+df2 <- pred_ext(read_rds(here("Data","O_lm_multi_2.Rds")), fdat %>% filter(Genus_species %in% c('Eomaia_scansoria', 'Sinodelphys_szalayi')))
+
+df3 <- pred_ext( read_rds(here("Data","O_lm_multi_3.Rds")), fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
+
+df4 <- pred_ext(read_rds(here("Data","O_lm_multi_4.Rds")), fdat %>% filter(Genus_species %in% c('Rugosodon_eurasiaticus')))
+
+df5 <- pred_ext(read_rds(here("Data","O_lm_multi_5.Rds")), fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi')) %>% 
+                  select(-Specimen_Num) %>% 
+                  mutate(Specimen_Num = "mean_values") %>%
+                  group_by(Genus_species, Specimen_Num) %>% 
+                  summarise_at(14:93, mean, na.rm = T))
+
+df6 <- pred_ext(read_rds(here("Data","O_lm_multi_6.Rds")), fdat %>% filter(Genus_species %in% c('Ptilodus_kummae')))
+
+df7 <- pred_ext(read_rds(here("Data","O_lm_multi_7.Rds")), fdat %>% filter(Genus_species %in% c('Ignacius_clarkforkensis')))
+
+df8 <- pred_ext(read_rds(here("Data","O_lm_multi_8.Rds")), fdat %>% filter(Genus_species %in% c('Ambolestes_zhoui')))
+
+df9 <- pred_ext(read_rds(here("Data","O_lm_multi_9.Rds")), fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
+
+df10 <- pred_ext(read_rds(here("Data","O_lm_multi_10.Rds")), fdat %>% filter(Genus_species %in% c('Torrejonia_wilsoni')))
+
+df11 <- pred_ext(read_rds(here("Data","O_lm_multi_11.Rds")), fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
+
+pred_df <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11) %>%  mutate(method = "Fossil",
+         substrate = NA)
+```
+
+
+```{r}
+
+pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% #filter(var %in% var_acc) %>% 
+  mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
+  #THIS IS AVERAGING PER SPECIES
+  #group_by(substrate, method, Genus_species, draw) %>% 
+  #summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() 
+  mutate(var = "combined") %>% 
+  write_csv(here("Data", "Ord_Multiple_Predictions.csv"))
+
+pred_all <- read_csv(here("Data", "Ord_Multiple_Predictions.csv"))
+```
+
+# Whole Shebang  
+
+```{r}
+d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
+d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
+
+d4 <- c('#770194', '#1981db', "#2abb9c", "#79bc23")
+
+d4 <- c(P4 = '#770194', P3 = '#1981db', P2 = "#2abb9c", P1 = '#79bc23')
+
+p1 <- pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(method == "Full") %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "full", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         ) 
+p2 <- pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(method == "Fossil",
+         substrate %in% c('Ground', 'Climb')) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         )
+
+p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = 'bottom')
+```
+
+
+```{r}
+pred_all %>%  
+  #unite("specimen", Genus_species, sep = " ") %>% 
+  filter(is.na(substrate)) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) + 
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25))
+         )
+```
+
+### function
+```{r}
+
+hplot <- function(groups, method){
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  scale_fill_manual(values = rev(d4)) +
+
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))
+}
+
+```
+
+###  big df
+
+
+
+### Big Plot
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") 
+
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
+
+
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
+
+t3
+
+ggsave(here("Plots", "Predict_Ord_Mult_All.pdf"), height = 11, width = 10)
+
+```
+
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") 
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") 
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") 
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") 
+
+
+t1 <- pl1 / pl2 + plot_layout(guides = "collect")
+
+t2 <- pl3 / pl4 + plot_layout(guides = "collect")
+
+wrap_plots(t1, t2, ncol = 1)
+
+ggsave(here("Plots", "Predict_Bin_Mult_Extant.pdf"), height = 10, width = 8)
+
+```
+
+```{r}
+pl2 / pl4 + plot_layout(guides = "collect")
+
+ggsave(here("Plots", "Predict_Bin_Mult_Extant2.pdf"), height = 6, width = 13)
+```
+
+
+
+```{r}
+wrap_plots(t1, t2, t3, ncol = 1, heights = c(2/7, 2/7, 3/7))
+
+ggsave(here("Plots", "Predict_Bin_Mult_All.pdf"), height = 16, width = 13)
+```
+
+
+# Big Plot B&W
+
+```{r}
+
+hplot <- function(groups, method){
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n)) + 
+  geom_bar_pattern(stat = 'identity',
+    aes(y =Genus_species , x = n, pattern_type = max_rank),
+    fill            = 'white',
+    colour          = 'black', 
+    pattern_density = 1, 
+    pattern_fill    = 'black',
+    pattern = 'magick',
+    pattern_colour  = 'black',
+    pattern_key_scale_factor = 1.5
+  ) +
+    scale_pattern_type_discrete(choices = c('vertical2', 'gray40', 'hs_fdiagonal', 'crosshatch')) +
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))   
+          
+}
+
+```
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") 
+
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
+
+
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
+
+t3
+
+ggsave(here("Plots", "Predict_Ord_Mult_All_BW1.pdf"), height = 11, width = 10)
+
+```
+
+
+# Big Plot B&W 2
+
+```{r}
+
+hplot <- function(groups, method){
+  pred_all %>% 
+    filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+  group_by(Genus_species) %>% count(max_rank) %>% drop_na() %>% 
+  ggplot(aes(y =Genus_species , x = n, fill = max_rank)) + 
+  geom_bar( stat = 'identity', alpha = 0.8, position = position_fill(reverse = TRUE)) +
+    scale_fill_grey(start = 0.8, end = 0.2) +
+  labs(y = "", title = "fossil", x = 'probability') +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         axis.text.y=element_text(angle=30,hjust=1, size = 9))   
+          
+}
+
+```
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + theme(legend.position = 'none')
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + theme(legend.position = 'none')
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + theme(legend.position = 'none')
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + theme(legend.position = 'none')
+
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Early Mammal Predictions") + theme(legend.position = 'none')
+
+pl6 <- hplot(multi, "Fossil") + 
+  ggtitle("Multituberculate Predicitons") 
+
+pl7 <- hplot(primate, "Fossil") + 
+  ggtitle("Primate Predicitons") + theme(legend.position = 'none')
+
+
+t3 <- (pl1 / pl2 / pl3 / pl4) | (pl5 / pl6 / pl7 / guide_area()) + plot_layout(guides = 'collect') & theme(legend.direction = "horizontal")
+
+t3
+
+ggsave(here("Plots", "Predict_Ord_Mult_All_BW2.pdf"), height = 11, width = 10)
+
+```

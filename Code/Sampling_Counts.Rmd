@@ -1,0 +1,114 @@
+---
+title: "Sampling Counts"
+---
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, here, ape)
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  drop_na(Loc_Ord2, Loc_bin) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+### Load Tree & Get Cor Matrix
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+```
+
+
+
+## Total numbers
+429 specimens from 
+```{r}
+dat %>% nrow()
+
+dat$Order %>% unique() %>% length()
+dat$Family %>% unique() %>% length()
+dat$Taxon_Upham_style %>% unique() %>% length()
+```
+
+# Orders and Families
+
+## Marsupials
+```{r}
+# number of specimens
+dat %>% filter(Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia")) %>% nrow()
+
+# number of species
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia")) %>% nrow()
+
+# Number of Orders
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia")) %>% 
+  count(Order) %>% nrow()
+
+# Number of Families
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia")) %>% 
+  count(Family) %>% nrow()
+```
+
+## Placentals
+```{r}
+# number of specimens
+dat %>% filter(!Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia", "Monotremata")) %>% nrow()
+
+# number of species
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(!Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia", "Monotremata")) %>% nrow()
+
+# Number of Orders
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(!Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia", "Monotremata")) %>% 
+  count(Order) %>% nrow()
+
+# Number of Families
+dat %>% distinct(Genus_species, .keep_all = T) %>% filter(!Order %in% c("Dasyproctidae", "Dasyuromorphia", "Didelphimorphia", "Diprotodontia", "Microbiotheria", "Notoryctemorphia", "Paucituberculata", "Peramelemorphia", "Monotremata")) %>% 
+  count(Family) %>% nrow()
+```
+
+
+### Ordinal Counts
+```{r}
+dat %>% group_by(Loc_Ord2) %>% count()
+
+dat %>% distinct(Genus_species, .keep_all = T) %>% group_by(Loc_Ord2) %>% count()
+```
+
+## Binary Counts
+```{r}
+dat %>% group_by(Loc_bin) %>% count()
+
+dat %>% distinct(Genus_species, .keep_all = T) %>% group_by(Loc_bin) %>% count()
+```
+
+## Sampling by mass
+237 species
+```{r}
+ttt <- dat %>% group_by(Genus_species) %>% count() %>% nrow()
+# how many over 5kg?
+dat %>% group_by(Genus_species) %>% summarise(m_mass = mean(Mass_grams)) %>% ungroup() %>% filter(m_mass > 5000) %>% nrow()
+
+#what percent is under 5kg?
+tt <- dat %>% group_by(Genus_species) %>% summarise(m_mass = mean(Mass_grams)) %>% ungroup() %>% filter(m_mass < 5000) %>% nrow()
+
+tt/ttt
+```
+

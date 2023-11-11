@@ -1,0 +1,587 @@
+---
+title: "Binary no Phylo"
+output: html_notebook
+---
+
+Repeating all of the models and the predictions, but skipping the phylo and the Intraspecific. 
+
+The main figures are in `/Plots` and are called `Predict_NoPhy_All.pdf`, `Predict_NoPhy_Extant.pdf', and `Predict_NoPhy_Fossil.pdf` 
+
+#Key Findings
+
+1) The phylo/intraspecific models do **WAY** better at predicting the known extant data and do reasonably better at predicting the extant data using the "fossil" style models. Actual climbers jump up towards 1 in every measurement, though to varying degrees. 
+
+2) There is a **LOT** more uncertainty in the phylo/intra models. But this is ok, because there is uncertainty at every step of the way in these models anyways! 
+
+3) The 'fossil' and 'regular' extant predictions generate the same values (of course). This can be seen in the plots. 
+
+
+
+I'm going to Run this code quickly without much explanation
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "B",
+                              Loc_mode_Ordinal == "Sf" ~ "B",
+                              Loc_mode_Ordinal == "Ss" ~ "B",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
+```
+
+
+# Fit Models
+
+
+#### Prior  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 <- get_prior(Loc_bin ~ Sl + log_Mass,
+           family = bernoulli(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      )
+    )
+
+p1 = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(0, 1), class = b))
+```
+
+#### Prelim model  
+
+```{r }
+#initial fit
+mm <- brm(Loc_bin ~ Sl + log_Mass ,
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+list_b_lm <- vector(mode ="list")
+
+for(i in var_complete){
+  list_b_lm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+log_Mass")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 2,
+                         prior = p1,
+                         seed = 145
+                         ) 
+}
+
+```
+
+
+## Missing log(Mass)
+
+Update cannot be used with multivatiate models
+
+Prior must be called in the loop
+
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+for(i in var_missing){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+log_Mass")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ log_Mass + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 1)",
+      class == "Intercept" ~ "normal(0, 1)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_lm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 2,
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+list_b_lm %>% write_rds(here("Data","B_lm_mods_no_phy.Rds"))
+```
+
+# Predict
+
+Take model lists, then use them one by one to predict climbing in the fossil taxa.
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load( patchwork, glue, ggthemes)
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+nms <- read_rds(here("Data", "Order_Names.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+
+
+
+### Load Extant data  
+
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "B",
+                              Loc_mode_Ordinal == "Sf" ~ "B",
+                              Loc_mode_Ordinal == "Ss" ~ "B",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate(Fos = FALSE)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+pal = c( '#62361B', '#e6ab02',  '#7570b3', '#66a61e')
+
+
+### Load Fossil Data  
+
+
+fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8HfhcJNJ-jtYK10qlsdLi4i38tVc/edit#gid=0", na = c("NA", "?", "", "NULL")) %>% 
+  # Selecting only the lines with data
+  # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
+  slice (1:9) %>% 
+  select(!NOTES) %>% 
+  mutate(log_Mass = log(Mass_grams)) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+  mutate_at(vars(14:68), log) %>% 
+  mutate(Fos = TRUE)
+
+
+### Combine, scale, and split
+
+
+dat2 <- bind_rows(dat, fdat) %>% 
+  mutate_at(vars(17:95), scale2)
+
+dat <- dat2 %>% filter(Fos == FALSE) %>% select(!Fos)
+
+fdat <- dat2 %>% filter(Fos == TRUE) %>% select(!Fos)
+
+rm(dat2)
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+pred_vars <- fdat_cln[c(13:79)]
+
+### Load Model Subset
+
+list_b_lm <- read_rds(here("Data","B_lm_mods_no_phy.Rds"))
+#purrr keep_at is great!
+list_b2 <- list_b_lm %>% keep_at(pred_vars)
+
+names(list_b2)
+
+rm(list_b_lm)
+```
+
+
+## Fossil Functions
+```{r}
+colz <- c("Genus_species", "log_Mass", names(list_b2), "Specimen_Num")
+
+fd <- fdat %>% select(colz)
+
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+
+```
+
+# Extant Functions
+
+```{r}
+model_dat <- dat %>% filter(Genus_species %in% c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica"))
+
+nnn2 <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NULL) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+  
+}
+
+nnn3 <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = model_dat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    #allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+
+
+extant_climb <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis")
+
+extant_ground <- c("Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica")
+
+extant <- c("Didelphis_virginiana", "Sciurus_carolinensis",  "Tupaia_glis", "Cynocephalus_volans", "Glis_glis", "Hemicentetes_semispinosus", "Atelerix_albiventris", "Tupaia_tana", "Callospermophilus_lateralis", "Monodelphis_domestica")
+
+
+old <- c("Eomaia_scansoria", "Sinodelphys_szalayi", "Juramaia_sinensis", "Cokotherium_jiufotangensis", "Ambolestes_zhoui")
+
+new <- c("Filikomys_primaevus", "Torrejonia_wilsoni", "Ignacius_clarkforkensis", "Dryomomys_szalayi")
+
+var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
+#just the "sigs"
+var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+# just the really important sigs
+var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+#pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
+#with the mean probability
+var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
+
+nm <- names(list_b2)
+
+pred_df <- map2(list_b2, nm, ~nnn(.x, .y)) %>% bind_rows() %>% 
+  write_csv(here("Data", "Fossil_Predictions.csv")) %>% 
+  mutate(method = "Fossil",
+         substrate = NA)
+
+
+pred_df_ext_full <- map2(list_b2, nm, ~nnn2(.x, .y)) %>% 
+  bind_rows() %>% 
+  mutate(method = "Full",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+pred_df_ext_fos <- map2(list_b2, nm, ~nnn3(.x, .y)) %>% 
+  bind_rows() %>% 
+  mutate(method = "Fossil",
+         substrate = case_when(
+    Genus_species %in% extant_climb ~ "Climb",
+    TRUE ~ "Ground"
+  ))
+
+pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_ord3) %>% 
+  mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
+  #THIS IS AVERAGING PER SPECIES
+  group_by(substrate, method, var, Genus_species, draw) %>% 
+  summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() 
+
+```
+
+
+# Whole Shebang  
+
+### Plot helpers
+```{r}
+var_ord = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "Tmw", "BI", "Pel", "Fsw", "Fdw", "Mcl", "Hdw", "Tl", "Pppl", "Hsw", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2") 
+#just the "sigs"
+var_ord2 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Mtl", "TRI", "Ppw", "Cl", "Mcw", "MRI", "IM", "Ul", "Fl", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+# just the really important sigs
+var_ord3 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2")
+#pal = c('#66a61e', '#5e1ea6',  '#e6ab02', '#f9581c','#0d57ff')
+#with the mean probability
+var_ord4 = c("HPI", "OLI", "FRI", "CI", "FEB", "Uol", "PRTI", "HEB", "HRI", "Rl", "MANUS2", "Hl", "Ipl", "MANUS", "Ppl", "PES", "PES2", "Mean")
+
+
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+
+```
+
+
+### function
+```{r}
+hplot <- function(groups, method){
+  pred_all %>% filter(Genus_species %in% {{groups}},
+                         method == {{method}}) %>% 
+    mutate(var =  as.factor(var)) %>% 
+  ggplot(aes(y = Prob_of_Climbing, 
+             x = fct_relevel(var,var_ord3), 
+             #y = var,
+             color = Genus_species)) +
+  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.5) +
+  stat_pointinterval(.width = c(0.5, 0.68268), 
+                     #linewidth = c(0.75, 0.5), 
+                     position = position_dodge(width = -.6)) + ylim(0,1) +
+    labs(x = "", y = "Probability of Climbing") +
+  scale_color_manual(values = pal) + theme_pander() + 
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7) )
+}
+
+
+```
+
+###  big df
+
+
+
+### Big Plot
+```{r}
+pl5 <- hplot(old, "Fossil") + 
+  ggtitle("Extinct Predicitons 1") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl6 <- hplot(new, "Fossil") + 
+  ggtitle("Extinct Predicitons 2") + 
+  theme(#axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+
+t3 <- pl5 / pl6 
+
+t3
+
+ggsave(here("Plots", "Predict_NoPhy_Fossil.pdf"), height = 6, width = 13)
+
+```
+
+
+```{r}
+pl1 <- hplot(extant_climb, "Full") + 
+  ggtitle("Extant Climb Full Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl2 <- hplot(extant_climb, "Fossil") + 
+  ggtitle("Extant Climb Fossil") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl3 <- hplot(extant_ground, "Full") + 
+  ggtitle("Extant Ground Full Predictions") + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),
+        axis.title.y = element_blank())
+
+pl4 <- hplot(extant_ground, "Fossil") + 
+  ggtitle("Extant Ground Fossil") + 
+  theme(#axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "lines"),)
+
+
+t1 <- pl1 / pl2 + plot_layout(guides = "collect")
+
+t2 <- pl3 / pl4 + plot_layout(guides = "collect")
+
+wrap_plots(t1, t2, ncol = 1)
+
+ggsave(here("Plots", "Predict_NoPhy_Extant.pdf"), height = 11, width = 13)
+
+```
+
+```{r}
+wrap_plots(t1, t2, t3, ncol = 1)
+
+ggsave(here("Plots", "Predict_NoPhy_All.pdf"), height = 16, width = 13)
+```
+
+
+
+

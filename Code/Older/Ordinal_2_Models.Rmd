@@ -1,0 +1,366 @@
+---
+title: "Ordinal Classification"
+output:
+  html_document:
+    df_print: paged
+---
+
+Predicting Ordinal Locomotion classifications with 4 rankings using postcranial measurements:
+  - Arboreal
+  - Scansorial
+  - Terrestrial
+  - Burrowing
+
+Models will also incorporate intraspecific variation and phylogenetic variation.
+
+Same as `Ordinal_Models.Rmd` but with 4 categories:  
+
+- Arboreal (arboreal and gliding)  
+- Scansorial  
+- Terrestrial  
+- Burrowing (inter-substrate, ssemi-fossorial, substrate submerged?)
+
+## Preperation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+```
+
+### Load data  
+### Load data  
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+# Recode Ordinal Rankings
+  mutate(Loc_Ord = case_when(Loc_mode_Ordinal == "G"  ~ "G",
+                             Loc_mode_Ordinal == "A"  ~ "A",
+                             Loc_mode_Ordinal == "Sc" ~ "Sc",
+                             Loc_mode_Ordinal == "T"  ~ "T",
+                             Loc_mode_Ordinal == "Is" ~ "Is",
+                             Loc_mode_Ordinal == "Sf" ~ "Sf",
+                             Loc_mode_Ordinal == "Ss" ~ "Ss",
+                             TRUE ~ NA),
+         Loc_Ord = as.ordered(Loc_Ord),
+         Loc_Ord = fct_relevel(Loc_Ord, c("G","A","Sc","T","Is","Sf","Ss")),
+         # Combining the Intersurface and Semifossorial
+         Loc_Ord2 = case_when(Loc_mode_Ordinal == "G" ~ "A",
+                              Loc_mode_Ordinal == "A" ~ "A",
+                              Loc_mode_Ordinal == "Sc" ~ "Sc",
+                              Loc_mode_Ordinal == "T" ~ "T",
+                              Loc_mode_Ordinal == "Is" ~ "B",
+                              Loc_mode_Ordinal == "Sf" ~ "B",
+                              Loc_mode_Ordinal == "Ss" ~ "B",
+                             TRUE ~ NA),
+         Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")),
+         Loc_bin = case_when(Loc_mode_Bindary == "Ground" ~ 0,
+                             Loc_mode_Bindary == "Tree" ~ 1,
+                             TRUE ~ NA
+                             ),
+        # Loc_bin = as.factor(Loc_bin),
+         Loc_mode_Categorical = as.factor(Loc_mode_Categorical),
+         log_Mass = log(Mass_grams)) %>% 
+    relocate(Loc_bin, .after = Loc_mode_Bindary) %>% 
+  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_Ord2, .after = Loc_Ord) %>%
+  relocate(log_Mass, .before = Skl) %>% 
+#################
+#Calculate Indices!
+#################
+  mutate(SI = Sh / Sl,             # Scapular Index
+         HRI = Hsw / Hl,           # Humeral Robustness Index
+         HPI = Hpw / Hl,           # Humeral Proximal Index
+         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
+         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
+         HHW = Hhw / Hhl,          # Humeral Head Shape Index
+         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
+         OLI = Uol / Ul,           # Olecranon Process Length Index
+         BI = Rl / Hl,             # Brachial Index
+         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
+         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
+         MRI = Mcw / Mcl,          # Metacarpal Robustness
+         MANUS = Ppl / Mcl,        # MANUS index
+         MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
+         IRI = Fgh / Fl,           # Gluteal Index
+         FRI = Fsw / Fl,           # Femoral Robustness
+         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
+         CI = Tl / Fl,             # Crural Index
+         TRI = Tmw / Tl,           # Tibial Robustness Index
+         #ANR = Anl / Al,          # Astragular Neck Robustness Index
+         #CAR = Cal / Cl,          # Calcaneal Robustness Index
+         IRI = Il / Pel,           # Illium Robustness Index
+         PR = Il / Isl,            # Pelvic Index
+         PES = Pppl / Mtl,         # PES INdex
+         PES2 = (Pppl+Pipl)/Mtl    # PES with intermediate Phalanx
+         ) %>% 
+    # geometric mean
+  drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sh, Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
+  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw  * Sh * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/13)) %>%
+  relocate(gm, .before = log_Mass) %>% 
+  mutate_at(vars(19:73), log) %>% 
+  mutate_at(vars(17:95), scale2)
+
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+### Fit Models 
+
+
+Looping over all of the variables to see which ones do a good job predicting the binary tree vs. no-tree categorization
+
+#### Get Prior
+
+```{r message = FALSE, warning=FALSE, results = 'hide'}
+
+p1 <- get_prior(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+  data2 = list(A = A),
+           family = cumulative(),
+           data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"  ~ "normal(0, 1)",
+        class == "sd" ~ "normal(0, 1)",
+        class == "Intercept" ~ "normal(0, 1)",
+        TRUE ~ prior
+      )
+    )
+```
+
+
+```{r message = FALSE, warning=FALSE,  cache=TRUE, results = 'hide'}
+#initial fit
+mm <- brm(Loc_Ord2 ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = cumulative(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+
+
+```{r}
+pal = c('#66a61e', '#7570b3', '#62361B',  '#e6ab02')
+cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
+```
+
+```{r}
+plot(conditional_effects(mm, categorical = TRUE), plot = F)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+```
+
+#### Log Mass Loop
+
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+varis <- colnames(dat)[19:95]
+
+list_o2_lm <- vector(mode ="list")
+
+for(i in varis){
+  list_o2_lm[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord2 ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
+}
+
+list_o2_lm %>% write_rds(here("Data","ordinal2_lm_models.Rds"))
+```
+
+
+#### Geometric Mean Loop
+
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+varis <- colnames(dat)[19:95]
+
+list_o2_gm <- vector(mode ="list")
+
+for(i in varis){
+  list_o2_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_Ord2 ~", i, "+gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = cumulative(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1
+                         ) 
+}
+
+list_o2_gm %>% write_rds(here("Data","ordinal2_gm_models.Rds"))
+```
+
+
+## Model tuning 
+
+
+I'm not sure how to help the divergent transitions. They seem to appear with the intraspecific variation and the phylogenetic variation. 
+
+
+```{r message = FALSE}
+source("Dirichlet_Prior.R")
+
+ps1 <- get_prior(Loc_Ord2 ~ Ppl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)), data2 = list(A = A),family = cumulative(), data = dat) %>%  mutate(prior = case_when(
+  class == "b"  ~ "normal(0,1)",
+  class == "sd" ~ "normal(0, 1)",
+  class == "Intercept" ~ "student_t(2,0,2)",
+  TRUE ~ prior ) )
+
+ps2 <- ps1 %>%  mutate(prior = case_when(
+  class == "b"  ~ "student_t(3,0,1)",
+  class == "sd" ~ "normal(0, 1)",
+  class == "Intercept" ~ "student_t(1,0,2)",
+  TRUE ~ prior ) )
+
+ps3 <- ps1 %>%  mutate(prior = case_when(
+  class == "b"  ~ "normal(0, 1)",
+  class == "sd" ~ "normal(0, 1)",
+  class == "Intercept" ~ "normal(0, 1)",
+  TRUE ~ prior ) )
+
+ps4 =  c(set_prior("induced_dirichlet(rep_vector(1, nthres+1),0", class = "Intercept"),
+          set_prior("student_t(2,0,2)", class = "sd"),
+          set_prior("normal(0,1)", class = "b"))
+
+ps5 =  c(set_prior("induced_dirichlet(rep_vector(1, nthres+1),0", class = "Intercept"),
+          set_prior("normal(0,1)", class = "sd"),
+          set_prior("normal(0,1)", class = "b"))
+```
+
+
+```{r warning = FALSE}
+
+ms_1 <- brm( Loc_Ord2 ~ Ppl + log_Mass + (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps1)
+
+ms_2 <- brm( Loc_Ord2 ~Ppl +  + log_Mass +(1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps2)
+
+ms_3 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps3)
+
+ms_4 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps4, stanvars = dirichlet_prior_stanvar)
+
+ms_5 <- brm( Loc_Ord2 ~ Ppl +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = cumulative(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), prior = ps5, stanvars = dirichlet_prior_stanvar)
+```
+
+
+```{r}
+loo(ms_1, ms_2, ms_3, ms_4, ms_5)
+```
+
+```{r}
+plot(conditional_effects(ms_4, categorical = TRUE), plot = F)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+
+plot(conditional_effects(ms_3, categorical = TRUE), plot = F)[[1]] +
+  scale_fill_manual(values = pal) +
+  scale_color_manual(values = pal)
+
+plot(ms_4, N=3, ask=F)
+```
+
+## Probit vs. logit
+```{r warning = F}
+ml <- brm(Loc_Ord2 ~ Ppl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = cumulative(link = "logit"),
+          data = dat, refresh = 0, cores = 4,
+          prior = c(set_prior("normal(0,1)", class = "sd"),
+                      set_prior("normal(0,1)",  class = "b")))
+
+mp <- brm(Loc_Ord2 ~ Ppl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = cumulative(link = "probit"),
+          data = dat, refresh = 0, cores = 4,
+          prior = c(set_prior("normal(0,1)", class = "sd"),
+                      set_prior("normal(0,1)",  class = "b")))
+```
+
+```{r}
+loo(ml, mp)
+```
+
+```{r}
+pp_check(ml, type = 'bars', ndraws = 1000)
+pp_check(mp, type = 'bars', ndraws = 1000)
+```
+
+
+## ANOVA
+
+```{r warning = FALSE, message=FALSE}
+anv1 <- brm( Ppl ~ 0 + Loc_Ord2 +  log_Mass +  (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)), family = gaussian(), data=dat, refresh = 0, cores = 4, data2 = list(A = A), 
+             prior = c(set_prior("normal(0,1)", class = "sd"),
+          set_prior("normal(0,1)", class = "b")))
+
+anv2 <- brm(bf(Uol ~ 0 + Loc_Ord2 +  log_Mass + (1|Genus_species)+ (1|gr(Taxon_Upham_style,cov = A)),
+               sigma ~ 0 + Loc_Ord2),
+            family = gaussian(), 
+            data=dat, refresh = 0, 
+            cores = 4, data2 = list(A = A), 
+            prior = c(set_prior("normal(0,1)", 
+                                class = "sd"),
+                      set_prior("normal(0,1)", 
+                                class = "b")))
+```
+
+```{r}
+as_draws_df(anv1) %>% 
+  select(1:4) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89)) + 
+  xlim(-1.25, 1)
+
+as_draws_df(anv2) %>% 
+  select(1:4) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89)) + 
+  xlim(-1.25, 1)
+
+as_draws_df(anv1) %>% 
+  select(1:4) %>% 
+  mutate(dif_A_Sc = b_Loc_Ord2A - b_Loc_Ord2Sc,
+         dif_A_T = b_Loc_Ord2A - b_Loc_Ord2T,
+         dif_A_B = b_Loc_Ord2A - b_Loc_Ord2B) %>% 
+  select(5:7) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  geom_halfeyeh(.width = c(.66, .89))
+
+as_draws_df(anv2) %>% 
+  select(1:4) %>% 
+  mutate(dif_A_Sc = b_Loc_Ord2A - b_Loc_Ord2Sc,
+         dif_A_T = b_Loc_Ord2A - b_Loc_Ord2T,
+         dif_A_B = b_Loc_Ord2A - b_Loc_Ord2B) %>% 
+  select(5:7) %>% 
+  gather(var, val) %>% 
+  ggplot(aes(x = val, y = var)) + 
+  stat_halfeye(.width = c(.66, .89))
+  
+  
+```
+
+

@@ -1,0 +1,232 @@
+---
+title: "Phylo Signal"
+#output: html_notebook
+---
+
+
+#### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+source(here("Code","Name_Change.R"))
+```
+
+#### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv"))
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+# Organizing complete measurements and those with missing values.
+# they require different models
+var_complete <-  read_rds(here("Data", "var_complete.Rds"))
+var_missing <-  read_rds(here("Data", "var_missing.Rds"))
+var_complete_linear <-  read_rds(here("Data", "var_complete_linear.Rds"))
+var_missing_linear <-  read_rds(here("Data", "var_missing_linear.Rds"))
+var_complete_ratio <-  read_rds(here("Data", "var_complete_ratio.Rds"))
+var_missing_ratio <-  read_rds(here("Data", "var_missing_ratio.Rds"))
+
+var_linear <- c(var_complete_linear, var_missing_linear)[-1]
+var_ratio <- c(var_complete_ratio, var_missing_ratio)
+var_all <- c(var_linear, var_ratio)
+```
+
+#### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+
+
+# Fit Models
+
+## Linear Measurements
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+
+#initial fit
+# With log mass
+
+mm <- brm(Sl ~ 1 + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          data = dat, refresh = 0, cores = 4)
+
+
+# withouit log mass
+mm2 <- brm(SI ~ 1 + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          data = dat, refresh = 0, cores = 4)
+```
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide'}
+
+list_b_lm <- vector(mode ="list")
+
+hyp <- "sd_Taxon_Upham_style__Intercept^2 / (sd_Taxon_Upham_style__Intercept^2 +  sigma^2 + sd_Genus_species__Intercept^2) = 0"
+
+for(i in var_linear){
+  tt<- update(mm,
+                         formula=(paste0(i, "~1+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         seed = 145
+                         )  
+    list_b_lm[[i]]<-  hypothesis(tt, hyp, class = NULL, alpha = 0.11)$hypothesis
+    
+}
+
+mm2 <- brm(SI ~ 1 + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          data = dat, refresh = 0, cores = 4)
+
+for(i in var_ratio){
+  tt<- update(mm2,
+                         formula=(paste0(i, "~1+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         seed = 145
+                         )  
+    list_b_lm[[i]]<-  hypothesis(tt, hyp, class = NULL, alpha = 0.11)$hypothesis
+    
+}
+
+
+list_b_lm %>% write_rds(here("Data", "phy_sig_mods.rds"))
+```
+
+
+```{r}
+mypaste <- function(x, y, z) {
+              paste0(x, " (", y,", ", z, ") ")
+}
+
+correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "SI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
+
+df <- list_b_lm %>% bind_rows() %>% mutate_if(is.numeric, round, 2)
+x = df$Estimate
+y = df$CI.Lower
+z = df$CI.Upper
+
+df2 <- as.data.frame(mypaste(x, y, z)) %>% 
+  as_tibble() %>% 
+  rename("Phylo Signal" = "mypaste(x, y, z)") %>% 
+  mutate(Metric = var_all) %>% 
+  transform(Metric=str_replace(Metric,"b_","")) %>%
+  transform(Metric=str_replace(Metric,"bsp_Locbin_mi","")) %>%
+  mutate(Metric =  factor(Metric, levels = correct)) %>%
+  arrange(Metric) %>%
+  transform(Metric=str_replace(Metric,"ls","LSR ")) %>% 
+  write_csv(here("Data", "Phy_Sig_Table.csv"))
+
+
+```
+
+
+
+
+Phy signal using the hyp method
+
+```{r}
+hyp <- "sd_Taxon_Upham_style__Intercept^2 / (sd_Taxon_Upham_style__Intercept^2 +  sigma^2 + sd_Genus_species__Intercept^2) = 0"
+(hyp <- hypothesis(mm, hyp, class = NULL))
+plot(hyp)
+```
+
+```{r}
+hyp <- "sd_Taxon_Upham_style__Intercept^2 / (sd_Taxon_Upham_style__Intercept^2 + sd_Genus_species__Intercept^2 + sigma^2) = 0"
+(hyp <- hypothesis(no_mas, hyp, class = NULL))
+plot(hyp)
+```
+
+
+```{r}
+hyp <- "sd_Taxon_Upham_style__Intercept^2 / (sd_Taxon_Upham_style__Intercept^2 +  sd_obs__Intercept^2)  = 0"
+(hyp <- hypothesis(masb, hyp, class = NULL))
+plot(hyp)
+```
+
+
+I need to check this with something else.
+
+```{r}
+dat2 <- dat %>%  group_by(Taxon_Upham_style, Loc_Ord2, Loc_bin) %>% summarise_at(vars(Sl:lsCl), mean, na.rm = TRUE) %>% 
+  ungroup() 
+
+spp_obs <- dat2$Taxon_Upham_style %>% unique()
+
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+
+dat2 %>% filter(Taxon_Upham_style %in% tt)
+
+hls = dat2$Rl
+names(hls) = dat2$Taxon_Upham_style
+
+phytools::phylosig(tr, hls[tr$tip.label], method="lambda", test=FALSE, nsim=1000, se=NULL, start=NULL,
+	control=list())
+```
+
+
+
+# Fit Models
+
+## Linear Measurements
+
+### Log-Mass Complete
+
+#### Prelim model  
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+# prior
+
+p1 = c(prior(normal(0, 5), class = Intercept),
+       prior(normal(0, 2), class = b),
+       prior(normal(0, 0.3), class = sd))
+
+#initial fit
+mm <- brm(Loc_bin ~ Sl + log_Mass + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+list_b_lm <- vector(mode ="list")
+
+for(i in var_complete_linear){
+  list_b_lm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+log_Mass+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1,
+                         seed = 145
+                         ) 
+}
+
+```
+

@@ -1,0 +1,40 @@
+---
+title: "Index Correlation Test"
+---
+
+#### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, gdata)
+
+
+here::i_am("README.md")
+here()
+
+
+
+#### Load data  
+
+dat <- read_csv(here("Data", "Extant_Master.csv"))
+```
+
+72 - 94 are the columns
+
+Code taken from here: https://stackoverflow.com/questions/3571909/calculate-correlation-with-cor-only-for-numerical-columns
+```{r}
+corr_matrix <- dat %>% select(16, 72:94) %>% 
+  cor(method="pearson", use="pairwise.complete.obs")
+
+
+lowerTriangle(corr_matrix, diag = TRUE) <- 0 
+cors<- corr_matrix %>%
+  data.frame() %>%
+  mutate(var1 = row.names(.)) %>%
+  pivot_longer(-var1, names_to = "var2", values_to = "cor") %>%
+  filter(cor != 0,
+         var1 == "log_Mass") %>% 
+  arrange(desc(cor))
+
+cors %>% view()
+```
+

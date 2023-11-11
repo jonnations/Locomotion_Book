@@ -1,0 +1,305 @@
+---
+title: "Ordinal Results Table"
+#output: html_notebook
+---
+
+
+
+# Ordinal
+
+## Load Packages and Models
+```{r}
+pacman::p_load(tidyverse, brms, tidybayes, kableExtra, here)
+
+here::i_am("README.md")
+```
+
+## Load Data
+```{r}
+list_o_lm1 <- read_rds(here("Data","O_lm_mods_mis.Rds"))
+list_o_lm2 <- read_rds(here("Data","O_ratio_mods_mis.Rds"))
+
+var_complete <-  read_rds(here("Data", "var_complete.Rds"))[-1]
+var_missing <-  read_rds(here("Data", "var_missing.Rds"))
+
+list_no_mis <- append(list_o_lm1, list_o_lm2)  %>% keep_at(var_complete) 
+  
+list_mis <- append(list_o_lm1, list_o_lm2)  %>% keep_at(var_missing)
+
+rm(list_o_lm1, list_o_lm2)
+```
+
+What I need to do is make a separate dataframe for mean, low CI, and upper CI, then paste them, including the parentheses, then bind_cols with a dataframe with just the parameter names. Then print the table. 
+
+Bottom answer [here](https://stackoverflow.com/questions/34781769/rmarkdown-table-with-cells-that-have-two-values) is the inspiration.
+
+Pulling some scripts from the model script in the Sulawesi Community project
+
+## Functions
+
+
+```{r}
+mypaste <- function(x, y, z) {
+              paste0(x, " (", y,", ", z, ") ")
+}
+
+#For non-missing
+
+clean_o_nomis <- function(mod){
+  v = get_variables({{mod}})[1:8]
+  df = posterior_summary({{mod}}, probs = c(0.055, 0.945), 
+        variable = v) %>% 
+    as_tibble(rownames = "par")  %>% 
+    select(-Est.Error) %>%
+    mutate(par = case_when(
+      par == "b_Intercept[1]" ~ "Intercept_1",
+      par == "b_Intercept[2]" ~ "Intercept_2",
+      par == "b_Intercept[3]" ~ "Intercept_3",
+      par == "sd_Taxon_Upham_style__Intercept" ~ "Phylo_sd",
+      par == "sd_Genus_species__Intercept" ~ "Species_sd",
+      TRUE ~ par)) %>% 
+    slice(1:7) %>% 
+    filter(par != "b_log_Mass") %>% 
+    slice(1:6) %>% 
+    mutate_if(is.numeric, round, 2) 
+
+  x = df$Estimate
+  y = df$Q5.5
+  z = df$Q94.5
+  df2 <- as.data.frame(mypaste(x, y, z))
+  nam <- df$par
+  
+  bind_cols(nam, df2) %>% 
+    rename(parameter = "...1",
+           "Estimate (l_89, u_89)" = "mypaste(x, y, z)") %>% 
+    gather(est, value, "Estimate (l_89, u_89)") %>% 
+    spread(parameter, value) %>% 
+    select(!est) %>% 
+    add_column(Metric = nam[4]) %>% 
+    rename(Beta = 1)
+}
+
+# For missing
+clean_o_mis <- function(mod){
+  v = get_variables({{mod}})[1:21]
+  df = posterior_summary({{mod}}, probs = c(0.055, 0.945), 
+        variable = v) %>% 
+    as_tibble(rownames = "par")  %>% 
+    select(-Est.Error) %>%
+    mutate(par = case_when(
+      par == "b_LocOrd2_Intercept[1]" ~ "Intercept_1",
+      par == "b_LocOrd2_Intercept[2]" ~ "Intercept_2",
+      par == "b_LocOrd2_Intercept[3]" ~ "Intercept_3",
+      par == "sd_Taxon_Upham_style__LocOrd2_Intercept" ~ "Phylo_sd",
+      par == "sd_Genus_species__LocOrd2_Intercept" ~ "Species_sd",
+      TRUE ~ par)) %>% 
+    filter(par != "b_LocOrd2_log_Mass") %>% 
+    slice(1:3, 18:20) %>% 
+    mutate_if(is.numeric, round, 2) 
+
+  x = df$Estimate
+  y = df$Q5.5
+  z = df$Q94.5
+  df2 <- as.data.frame(mypaste(x, y, z))
+  nam <- df$par
+  
+  bind_cols(nam, df2) %>% 
+    rename(parameter = "...1",
+           "Estimate (l_89, u_89)" = "mypaste(x, y, z)") %>% 
+    gather(est, value, "Estimate (l_89, u_89)") %>% 
+    spread(parameter, value) %>% 
+    select(!est) %>% 
+    add_column(Metric = nam[4]) %>% 
+    rename(Beta = 1)
+}
+
+
+```
+
+
+```{r}
+correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "SI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
+
+nmi <- map(list_no_mis, clean_o_nomis) %>% bind_rows() 
+mi <- map(list_mis, clean_o_mis) %>% bind_rows() 
+
+ot <- bind_rows(nmi, mi) %>% 
+  transform(Metric=str_replace(Metric,"b_","")) %>%
+  transform(Metric=str_replace(Metric,"bsp_LocOrd2_mi","")) %>%
+  mutate(Metric =  factor(Metric, levels = correct)) %>%
+  arrange(Metric) %>%
+  transform(Metric=str_replace(Metric,"ls","LSR "))  %>% view()
+
+```
+## Add Phylo Signal
+
+## Add Pylo Signal
+
+```{r}
+ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
+
+ot %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
+  write_csv(here("Data", "Ordinal_Table.csv"))
+```
+
+```{r}
+rm(list_no_mis, list_mis)
+```
+
+# Binary 
+
+## Load Data
+```{r}
+list_b_lm1 <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+list_b_lm2 <- read_rds(here("Data","B_ratio_mods_mis.Rds"))
+
+var_complete <-  read_rds(here("Data", "var_complete.Rds"))[-1]
+var_missing <-  read_rds(here("Data", "var_missing.Rds"))
+
+list_no_mis <- append(list_b_lm1, list_b_lm2)  %>% keep_at(var_complete) 
+  
+list_mis <- append(list_b_lm1, list_b_lm2)  %>% keep_at(var_missing)
+
+rm(list_b_lm1, list_b_lm2)
+```
+
+
+
+## Functions
+
+
+```{r}
+mypaste <- function(x, y, z) {
+              paste0(x, " (", y,", ", z, ") ")
+}
+
+#For non-missing
+
+clean_b_nomis <- function(mod){
+  v = get_variables({{mod}})[1:5]
+  df = posterior_summary({{mod}}, probs = c(0.055, 0.945), 
+        variable = v) %>% 
+    as_tibble(rownames = "par")  %>% 
+    select(-Est.Error) %>%
+    mutate(par = case_when(
+      par == "b_Intercept" ~ "Intercept",
+      par == "sd_Taxon_Upham_style__Intercept" ~ "Phylo_sd",
+      par == "sd_Genus_species__Intercept" ~ "Species_sd",
+      TRUE ~ par)) %>% 
+    slice(1:5) %>% 
+    filter(par != "b_log_Mass") %>% 
+    slice(1:4) %>% 
+    mutate_if(is.numeric, round, 2) 
+
+  x = df$Estimate
+  y = df$Q5.5
+  z = df$Q94.5
+  df2 <- as.data.frame(mypaste(x, y, z))
+  nam <- df$par
+  
+  bind_cols(nam, df2) %>% 
+    rename(parameter = "...1",
+           "Estimate (l_89, u_89)" = "mypaste(x, y, z)") %>% 
+    gather(est, value, "Estimate (l_89, u_89)") %>% 
+    spread(parameter, value) %>% 
+    select(!est) %>% 
+    add_column(Metric = nam[2]) %>% 
+    rename(Beta = 1)
+}
+
+# For missing
+clean_b_mis <- function(mod){
+  v = get_variables({{mod}})[1:19]
+  df = posterior_summary({{mod}}, probs = c(0.055, 0.945), 
+        variable = v) %>% 
+    as_tibble(rownames = "par")  %>% 
+    select(-Est.Error) %>%
+    mutate(par = case_when(
+      par == "b_Locbin_Intercept" ~ "Intercept",
+      par == "sd_Taxon_Upham_style__Locbin_Intercept" ~ "Phylo_sd",
+      par == "sd_Genus_species__Locbin_Intercept" ~ "Species_sd",
+      TRUE ~ par)) %>% 
+    filter(par != "b_Locbin_log_Mass") %>% 
+    slice(1, 16:18) %>% 
+    mutate_if(is.numeric, round, 2) 
+
+  x = df$Estimate
+  y = df$Q5.5
+  z = df$Q94.5
+  df2 <- as.data.frame(mypaste(x, y, z))
+  nam <- df$par
+  
+  bind_cols(nam, df2) %>% 
+    rename(parameter = "...1",
+           "Estimate (l_89, u_89)" = "mypaste(x, y, z)") %>% 
+    gather(est, value, "Estimate (l_89, u_89)") %>% 
+    spread(parameter, value) %>% 
+    select(!est) %>% 
+    add_column(Metric = nam[2]) %>% 
+    rename(Beta = 1)
+}
+
+
+```
+
+
+```{r}
+correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "SI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
+
+nmi <- map(list_no_mis, clean_b_nomis) %>% bind_rows() 
+mi <- map(list_mis, clean_b_mis) %>% bind_rows() 
+
+bt <- bind_rows(nmi, mi) %>% 
+  transform(Metric=str_replace(Metric,"b_","")) %>%
+  transform(Metric=str_replace(Metric,"bsp_Locbin_mi","")) %>%
+  mutate(Metric =  factor(Metric, levels = correct)) %>%
+  arrange(Metric) %>%
+  transform(Metric=str_replace(Metric,"ls","LSR "))  %>% view()
+```
+
+## Add Pylo Signal
+
+```{r}
+ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
+
+bt %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
+  write_csv(here("Data", "Binary_Table.csv"))
+```
+
+
+```{r}
+rm(list_no_mis, list_mis)
+```
+
+
+# Make Kable Table
+
+Here I ***manually*** edited the csv file. Instead of "xxx (xxx - xxx)" structure for the cells, I changed it to "xxx<br/>(xxx - xxx)" so that it prints a newline in the pdf kable. This table is called `Data/Table_S2_Model_Results2.csv` 
+
+I saved the LaTex table using the original, unedited (no `<br\>`) dataframe
+
+```{r}
+
+# PDF and PNG Plots of table
+read_csv(here("Data", "Binary_Table2.csv")) %>% 
+  rename('Phylo SD' = Phylo_sd,
+         'Species SD' = Species_sd,
+         'Phylo Signal' = Phylo.Signal,
+         'Effect Size' = Beta) %>% 
+  kbl(longtable = T, escape = F, align = 'c') %>% kable_classic(full_width = F, html_font = "Cambria", font_size = 15) %>%
+  #save_kable(file = here("Plots", "Table_S2_Model_Results.jpg"), zoom = 2, density = 300, keep_tex = T) %>% 
+  #save_kable(file = here("Plots", "Table_S2_Model_Results.png"), zoom = 2, density = 300, keep_tex = T) %>% 
+   save_kable(file = here("Plots", "Table_S2_Model_Results.pdf"), zoom = 2, density = 300, keep_tex = T)
+
+read_csv(here("Data", "Table_S2_Model_Results2.csv")) %>% kbl(longtable = T, escape = F, align = 'c') %>% kable_classic(full_width = F, html_font = "Cambria", font_size = 15) %>%
+  save_kable(file = here("Plots", "Table_S2_Model_Results.png"),zoom = 2, density = 300, keep_tex = T)
+
+# tex of table for the submission Supporting Information file. 
+read_csv(here("Data", "Table_S2_Model_Results.csv")) %>% pivot_longer(!c(Metric,Food), names_to = "Parameter", values_to = "Test") %>% pivot_wider(names_from = Food, values_from = Test) %>%
+  filter_at(vars(Bird, `Hard Invert`, `Large Mammal`, Plant, Carrion, Egg, Herptile, Seed,  `Small Mammal`, `Soft Invert`, Fish, Fruit, Root), any_vars(!is.na(.))) %>% 
+  select(Metric, Parameter, Bird, `Hard Invert`, `Large Mammal`, Plant, Carrion, Egg, Herptile, Seed, `Small Mammal`, `Soft Invert`, Fish, Fruit, Root) %>% 
+  kbl(longtable = T, escape = F, align = 'c', format = 'latex') %>% 
+  kable_classic(full_width = F, html_font = "Cambria", font_size = 5) %>% writeLines(here("Plots", "Table_S2_Model_Results.tex"))
+
+```
+

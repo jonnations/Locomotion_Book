@@ -1,0 +1,630 @@
+---
+title: "Binary Interaction Classification"
+output: html_notebook
+---
+
+Copy of `Binary_Missing_Models.Rmd` but with the interaction term!
+
+Predicting binary climbing classifications (tree vs. ground) using postcranial measurements and interactions. Models will also incorperate intraspecific variation and phylogenetic variation.
+
+# Preparation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+
+source(here("Code","Name_Change.R"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  filter(Genus_species !=  c('Leopardus_geoffroyi', 
+                             'Urocyon_cinereoargenteus')) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family))
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+## Description of Missing Data
+Follows `Binary_Missing_Models.Rmd`
+
+```{r}
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+```
+
+```{r}
+var_complete <- var_complete[c(1, 14:23)]
+var_missing <- var_missing[c(1:2,4,7,10,16,18,20)]
+```
+
+The percentages are stored in the df `Missing_Data_Percents.csv`
+
+# Fit GM Models
+
+## Geometric Mean Complete  
+
+#### Prior 
+same prior as above
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 = c(prior(normal(0, 5), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, 0.3), class = sd))
+```
+
+#### Prelim model  
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+mm <- brm(Loc_bin ~ Sl * log_gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+list_b_gm <- vector(mode ="list")
+
+for(i in var_complete){
+  list_b_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1,
+                         seed = 145
+                         ) 
+}
+
+```
+
+
+## Missing GM
+
+Update cannot be used with multivariate models
+
+Prior must be called in the loop
+
+
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+for(i in var_missing){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")*log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw + 
+       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_gm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+list_b_gm %>% write_rds(here("Data","B_Ind_gm_mods.Rds"))
+```
+
+
+
+# Fit Size Free Models
+
+## Geometric Mean Complete  
+
+#### Prior 
+same prior as above
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 = c(prior(normal(0, 5), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, 0.3), class = sd))
+```
+
+#### Prelim model  
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+mm <- brm(Loc_bin ~ Sl  + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+list_b_nm <- vector(mode ="list")
+
+for(i in var_complete){
+  list_b_nm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1,
+                         seed = 145
+                         ) 
+}
+
+```
+
+
+## Missing GM
+
+Update cannot be used with multivariate models
+
+Prior must be called in the loop
+
+
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide', cache = TRUE}
+
+for(i in var_missing){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw + 
+       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_nm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+list_b_nm %>% write_rds(here("Data","B_Ind_NOMASS_mods.Rds"))
+```
+
+# Fit GM NoInt Models
+
+
+#### Prior  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+p1 = c(prior(normal(0, 5), class = Intercept),
+                prior(normal(0, 2), class = b),
+                prior(normal(0, 0.3), class = sd))
+```
+
+#### Prelim model  
+
+```{r message = FALSE, warning=FALSE, include = FALSE, cache=TRUE}
+#initial fit
+mm <- brm(Loc_bin ~ Uol + log_gm + (1 | Genus_species) +  (1|gr(Taxon_Upham_style, cov = A)),
+          data2 = list(A = A),
+          family = bernoulli(),
+          data = dat, refresh = 0, cores = 4,
+          prior = p1)
+```
+
+
+#### Run Loop
+```{r  message = FALSE, warning=FALSE, results = 'hide'}
+
+list_b_gm <- vector(mode ="list")
+
+for(i in var_complete){
+  list_b_gm[[i]]<- update(mm,
+                         formula=(paste0("Loc_bin ~", i, "+log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")),
+                         family = bernoulli(),
+                         newdata=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = p1,
+                         seed = 145
+                         ) 
+}
+
+```
+
+
+## Missing log(Mass)
+
+Update cannot be used with multivatiate models
+
+Prior must be called in the loop
+
+
+#### Run Loop
+
+```{r message = FALSE, warning=FALSE, results = 'hide'}
+
+for(i in var_missing){
+  bin_mod <-  bf(paste0("Loc_bin ~ mi(", i, ")+log_gm+(1|Genus_species)+(1|gr(Taxon_Upham_style,cov = A))")) + bernoulli()
+  imp_mod <- bf(paste0(i,"| mi() ~ log_gm + Sl +  
+       Hl + Hsw + Hdw + Uol + Ul + Rl + 
+       Fl + Fsw + Fdw + Tl + Tmw + 
+       (1|gr(Taxon_Upham_style, cov = A))")) + gaussian()
+  m_form <- bin_mod + imp_mod + set_rescor(FALSE)
+  
+  pri <- get_prior(m_form,
+  data2 = list(A = A),
+           data = dat) %>% 
+  mutate(
+    prior = case_when(
+      class == "b"  ~ "normal(0, 2)",
+      class == "sd" ~ "normal(0, 0.3)",
+      class == "Intercept" ~ "normal(0, 5)",
+      class == "sigma" ~ "normal(0, 0.5)",
+      TRUE ~ prior
+      ))
+
+  list_b_gm[[i]]<- brm(m_form,
+                         data=dat,
+                         refresh = 0,
+                         cores = 4,
+                         data2 = list(A = A),
+                         prior = pri,
+                         seed = 145
+                         ) 
+}
+
+list_b_gm %>% write_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))
+
+```
+
+# Plotting
+
+```{r}
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes, ggstar)
+
+
+list_b_gm <- read_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))
+list_b_nm <- read_rds(here("Data","B_Ind_NOMASS_mods.Rds"))
+list_b_igm <- read_rds(here("Data","B_Ind_gm_mods.Rds"))
+```
+
+
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the MASS SLOPE, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[2] %>% 
+  gather(var, val) %>% 
+  mutate(#val = inv_logit_scaled(val),
+         var = names(as_draws_df(df)[2]))
+
+# Same for missing
+cln2 <- function(df) as_draws_df(df)[17] %>% gather(var, val) %>% 
+  mutate(#val = inv_logit_scaled(val),
+         var = names(as_draws_df(df)[17]))
+
+#for no mass
+cln3 <- function(df) as_draws_df(df)[16] %>% gather(var, val) %>% 
+  mutate(#val = inv_logit_scaled(val),
+         var = names(as_draws_df(df)[16]))
+
+```
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+lms <- map(list_b_igm[2:11], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_igm[12:19], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms_int <- lms %>% bind_rows(lms2) %>% 
+  mutate(type = "GM_Interation") 
+rm(lms, lms2)
+
+lms <- map(list_b_nm[2:11], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_nm[12:19], cln3) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms_no <- lms %>% bind_rows(lms2) %>% 
+  mutate(type = "No_GM") 
+rm(lms, lms2)
+
+lms <- map(list_b_gm[2:11], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_b_gm[12:19], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""))
+
+lms_gm <- lms %>% bind_rows(lms2) %>% 
+  mutate(type = "GM_No_Interaction") 
+rm(lms, lms2)
+
+lms_gm <- bind_rows(lms_gm, lms_int, lms_no)
+```
+
+
+
+##Good  Plot
+```{r}
+pal2 <- LaCroixColoR::lacroix_palette("Orange", n = 30, type = "continuous")[c(1,5,10,12,13,14,15,16,17,18,25,28)]
+
+lms_gm %>% 
+  group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean)) +
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  tidytext::scale_y_reordered("") +
+  labs(x = "Measurement effect size") +
+  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
+  scale_color_gradientn(colours = rev(pal2)) +
+  artyfarty::theme_scientific() + 
+  facet_wrap(~type, scales = 'free_y') +
+  theme(strip.background = element_blank(),
+        legend.position="none")
+
+ggsave(here("Plots", "Bin_Index_Mass_Test_Compare.pdf"))
+```
+
+# Prediction Accuracy
+
+### Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+#purrr keep_at is great!
+pred_vars <- c(var_complete[2:11], var_missing)
+
+list_b_gm  <- read_rds(here("Data","B_Ind_gmNoInt_mods.Rds"))  %>% keep_at(pred_vars)
+list_b_nm  <- read_rds(here("Data","B_Ind_NOMASS_mods.Rds")) %>% keep_at(pred_vars)
+list_b_igm <- read_rds(here("Data","B_Ind_gm_mods.Rds")) %>% keep_at(pred_vars)
+
+
+dgm <- as.data.frame(names(list_b_gm)) 
+colnames(dgm) <- "var"
+
+dnm <- as.data.frame(names(list_b_nm)) 
+colnames(dnm) <- "var"
+
+digm <- as.data.frame(names(list_b_igm)) 
+colnames(digm) <- "var"
+
+
+```
+
+Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
+## Fossil Functions
+```{r}
+colz <- c("Genus_species", "log_Mass", names(list_b_gm), "Specimen_Num")
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+fd <- fdat %>% select(all_of(colz))
+
+nnn <- function(mod, nm){
+  {{mod}} %>% 
+    add_epred_draws(newdata = fdat, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing, Specimen_Num) %>% 
+    mutate(var = {{nm}})
+}
+
+```
+
+
+```{r}
+#WITH PHYLO
+bin_pred_phy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species
+        ) #%>% 
+  #summarise(accuracy_phy = round((sum(dif == 0)/427) * 100, digits = 1))
+  return(d2)
+}
+
+
+bin_pred_phy_fn <- function(df){
+  map(df, ~bin_pred_phy(.x)) %>% bind_rows()
+}
+
+
+## NO PHYLO
+bin_pred_nophy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = NA, resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_nophy_fn <- function(df){
+  map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
+}
+
+# Order and Family
+
+# Phy is the same (all group_levels)
+
+## NO PHYLO is different
+bin_pred_tax_nophy <- function(model){
+  set.seed(124)
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = ~ (1|Order) + (1|Family), resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         #spec = {{model}}[[2]][[]],
+        # num = dat[[7]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_tax_nophy_fn <- function(df){
+  map(df, ~bin_pred_tax_nophy(.x)) %>% bind_rows()
+}
+
+```
+
+```{r}
+
+pred1 <- map(1, ~bin_pred_phy_fn(list_b_gm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dgm$var, each = 427),
+         method = 'phy',
+         mass = 'gm')
+
+pred2 <- map(1, ~bin_pred_nophy_fn(list_b_gm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dgm$var, each = 427),
+         method = 'no_phy',
+         mass = 'gm')
+
+
+pred3 <- map(1, ~bin_pred_phy_fn(list_b_nm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dnm$var, each = 427),
+         method = 'phy',
+         mass = 'no_mass')
+
+pred4 <- map(1, ~bin_pred_nophy_fn(list_b_nm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dnm$var, each = 427),
+         method = 'no_phy',
+         mass = 'no_mass')
+
+pred5 <- map(1, ~bin_pred_phy_fn(list_b_igm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(digm$var, each = 427),
+         method = 'phy',
+         mass = 'gm_int')
+
+pred6 <- map(1, ~bin_pred_tax_nophy_fn(list_b_igm)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(digm$var, each = 427),
+         method = 'no_phy',
+         mass = 'gm_int')
+
+preds <- bind_rows(pred1, pred2, 
+                   pred3, pred4, 
+                   pred5, pred6) %>%
+  write_csv(here("Data", "test_extant_predictions.csv"))
+preds <- read_csv(here("Data", "test_extant_predictions.csv"))
+#This is the full pred df from the `Binary_Prediction_Accuracy.Rmd` script
+#preds <- read_csv(here("Data", "extant_predictions.csv"))
+```
+
+
+## Accuracy
+
+```{r}
+accuracy <- preds %>% 
+  group_by(method, var, mass) %>%  
+  filter(method == "no_phy") %>% 
+  summarise(accuracy = round((sum(dif == 0)/427) * 100, 
+                             digits = 1)) %>% 
+  select(var, accuracy, method, mass) %>% 
+  #filter(#accuracy > 70,
+  #       method %in% c('no_phy', 'no_phy_int', 'no_phy_tax')
+  #       ) %>% 
+  arrange(desc(accuracy)) 
+ #arrange(mass, desc(accuracy)) 
+
+
+accuracy %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
+```
+

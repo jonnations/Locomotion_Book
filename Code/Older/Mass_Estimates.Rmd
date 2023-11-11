@@ -1,0 +1,171 @@
+---
+title: "SKull Length Mass Estimates"
+output: html_notebook
+---
+
+Estimating the mass of the fossils from skull length measurements.
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, here, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+### Load data  
+
+```{r message = FALSE, warning=FALSE}
+dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
+  select(!NOTES) %>% 
+  mutate(log_Mass = log(Mass_grams),
+         log_Skl = log(Skl),
+         log_Jl = log(Jl))
+
+fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8HfhcJNJ-jtYK10qlsdLi4i38tVc/edit#gid=0", na = c("NA", "?", "")) %>% 
+  # Selecting only the lines with data
+  # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
+  slice (1:5) %>% 
+  select(!NOTES) %>% 
+  mutate(log_Mass = log(Mass_grams),
+         log_Skl = log(Skl),
+         log_Jl = log(Jl))
+
+dat2 <- bind_rows(dat, fdat)
+```
+
+# Skull Estimate mass  
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+m1 <- brm(log_Mass ~ log_Skl,
+          data = dat,
+          family = gaussian(),
+          refresh = 0,
+          chains = 2,
+          cores = 2,
+          seed = 129)
+```
+
+```{r}
+plot(conditional_effects(m1, method = 'posterior_predict'), points = T)
+```
+
+
+
+
+# Predict Mass
+
+These values are being put back in the fossil data spreadsheet in google drive
+
+```{r}
+p1 <- posterior_epred(m1, newdata = fdat, ndraws = 2000, seed = 129)
+p1 %>% as.data.frame() %>% summarise(across(where(is.numeric), mean)) %>% 
+  t() %>% as.data.frame() %>% mutate(species = fdat$Genus_species,
+                                     mass = exp(V1))
+```
+
+# Jaw Estimate mass  
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+m2 <- brm(log_Mass ~ log_Jl,
+          data = dat,
+          family = gaussian(),
+          refresh = 0,
+          chains = 2,
+          cores = 2,
+          seed = 129)
+```
+
+```{r}
+plot(conditional_effects(m2, method = 'posterior_predict'), points = T)
+```
+
+
+
+
+# Predict Mass
+
+These values are being put back in the fossil data spreadsheet in google drive
+
+```{r}
+p2 <- posterior_epred(m2, newdata = fdat, ndraws = 2000, seed = 129)
+p2 %>% as.data.frame() %>% summarise(across(where(is.numeric), mean)) %>% 
+  t() %>% as.data.frame() %>% mutate(species = fdat$Genus_species,
+                                     mass = exp(V1))
+```
+
+
+
+# M1 estimates
+
+Gingerich equation is Log(Body_Mass_g) = 1.495 * Log( M1_Length * M1_Width) + 3.556
+
+Torrejonia_wilsoni  NMMNH P-54500 : M1 length = 3.25, M1 width = 4.5  
+Silcox & Williamson 2012
+Mass estimate = 1932.723 g
+```{r}
+exp((1.495 * log( 3.25 * 4.5)) + 3.556)
+```
+
+Ignacius_clarkforkensis: mean M1 Length = 2.66, mean M1 width = 3.23
+Bloch et al 2007
+Mass estimate = 872.5835 g
+```{r}
+exp((1.495 * log( 2.66 * 3.23)) + 3.556)
+```
+
+Dryomomys_szalayi: M1 lenght = 0.94, M1 width = 1.45
+Bloch et al 2007
+Mass estimate = 55.64 g
+
+```{r}
+exp((1.495 * log( .94 * 1.45)) + 3.556)
+```
+
+These seem really big. 
+What does Gingerich look like for fake data?
+
+```{r}
+x = seq(from = 1, to = 20, by = 0.25)
+y = exp((1.49 * log(x)) + 3.577)
+df = data_frame(x, y) 
+df %>% 
+  ggplot(aes(x=log(x), y=log(y))) + geom_point() + geom_point(aes(y=5, x=2))
+```
+
+The "Insectivores" slope looks more like an intercept of 2
+
+```{r}
+x = seq(from = 1, to = 20, by = 0.25)
+y = exp((1.49 * log(x)) + 2.01)
+data_frame(x, y) %>% 
+  ggplot(aes(x=log(x), y=log(y))) + geom_point() + geom_point(aes(y=5, x=2))
+```
+
+
+These are the values with the insectivore formula
+Torrejonia_wilsoni 
+```{r}
+exp((1.495 * log( 3.25 * 4.5)) + 2.01)
+```
+
+Ignacius_clarkforkensis: mean M1 Length = 2.66, mean M1 width = 3.23
+
+```{r}
+exp((1.495 * log( 2.66 * 3.23)) +  2.01)
+```
+
+Dryomomys_szalayi: M1 lenght = 0.94, M1 width = 1.45
+
+```{r}
+exp((1.495 * log( .94 * 1.45)) +  2.01)
+```
+

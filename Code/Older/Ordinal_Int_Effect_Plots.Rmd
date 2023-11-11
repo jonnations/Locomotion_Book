@@ -1,0 +1,164 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Plotting the Binary Int Mass Model results
+
+Focus on Effect size of the predictor
+
+Packages and Data
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes, tidytext)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+
+source(here("Code","Name_Change.R"))
+
+# Models
+
+list_o_lm <- read_rds(here("Data","O_lm_int_mods_mis.Rds"))
+list_o_gm <- read_rds(here("Data","O_gm_int_mods_mis.Rds"))
+```
+
+
+
+some colors
+```{r}
+pal = c('#66a61e', '#7570b3',  '#e6ab02', '#62361B')
+
+binpal = c('#66a61e','#5e1ea6')#5e1ea6
+
+cols = c("#7570b3" ,  "#85D4E3" , "#0D7E9A",'#f5f5cb', '#c7e6d4', '#8cd2cd', '#55c3cf', '#3fa4b0', '#187389','#f48a1a', '#e6ab02', '#66a61e', '#85D4E3', '#0D7E9A', '#7570b3','#f6d03d', '#fe7b30', '#ef4a27', '#f384f8', '#625afc', '#0d57ff', '#47a7ff','#5771ff', '#6bae9e', '#31c1bb', '#7af1e1', '#d5e1af', '#f48130','#C60C30', '#00A1DE', '#62361B', '#009B3A', '#f9581c', '#522398', '#E27EA6', '#F9E300', '#565A5C')
+
+pal2 <- LaCroixColoR::lacroix_palette("Orange", n = 30, type = "continuous")[c(1,5,10,12,13,14,15,16,17,18,25,28)]
+```
+
+# Forest Plots
+
+Here i'm focusing on the slope of the phenotype
+
+## Extract Slopes  
+
+#### Helper Functions
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the MASS SLOPE, then pivots in long, and scales it to probability
+cln <- function(df) as_draws_df(df)[4] %>% 
+  gather(var, val) %>% 
+  mutate(#val = inv_logit_scaled(val),
+         var = names(as_draws_df(df)[4]))
+
+# Same for missing
+cln2 <- function(df) as_draws_df(df)[19] %>% gather(var, val) %>% 
+  mutate(#val = inv_logit_scaled(val),
+         var = names(as_draws_df(df)[19]))
+
+linear = c("Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "Ipl", "Pppl", "Mtl", "Ppl", "Mcl", "Tpw", "Isl", "Il", "Pel", "Hpw", "Mcw", "Cl", "Ppw", "Pipl")
+
+index = c("SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
+
+log_shape = c("lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl")
+
+```
+
+```{r message = FALSE, warning=FALSE}
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+lms <- map(list_o_lm[2:35], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+lms2 <- map(list_o_lm[36:71], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_LocOrd2_mi",""))
+
+lms <- lms %>% bind_rows(lms2) %>% 
+  mutate(type = case_when(
+    var %in% linear ~ "Linear Measurement",
+    var %in% index ~ "Index",
+    var %in% log_shape ~ "Log-Shape Ratio",
+    TRUE ~ NA)) 
+rm(lms2)
+```
+
+#### Geometric_mean Slope DF  
+
+```{r message = FALSE, warning=FALSE}
+
+# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
+gms <- map(list_o_gm[2:35], cln) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "b_",""))
+
+gms2 <- map(list_o_gm[36:71], cln2) %>% 
+  bind_rows() %>% mutate(var = str_replace(var, "bsp_LocOrd2_mi",""))
+
+gms <- gms %>% bind_rows(gms2) %>% 
+  mutate(type = case_when(
+    var %in% linear ~ "Linear Measurement",
+    var %in% index ~ "Index",
+    var %in% log_shape ~ "Log-Shape Ratio",
+    TRUE ~ NA))
+
+rm(gms2)
+```
+
+
+
+##Good Ord Plot
+```{r}
+lms %>% 
+  group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean)) +
+  stat_pointinterval(.width = c(.66, .89)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_y_reordered("") +
+  labs(x = "Measurement effect size - Ordinal") +
+  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
+  scale_color_gradientn(colours = rev(pal2)) +
+  artyfarty::theme_scientific() + 
+  facet_wrap(~type, scales = 'free') +
+  theme(strip.background = element_blank(),
+        legend.position="none")
+
+ggsave(here("Plots", "Ord_Int_Effects.pdf"))
+```
+
+## Good All Plot
+```{r}
+lms2 <- lms %>% mutate(mass = "lm")
+gms2 <- gms %>% mutate(mass = "gm")
+
+ms <- bind_rows(lms2, gms2)
+
+
+ms %>% 
+  group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean, shape = mass)) +
+  stat_pointinterval(.width = c(.66, .89), 
+                     position = position_dodge(width = .75)) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_fill_manual(values = pal) +
+  scale_y_reordered("") +
+  labs(x = "Phenotypic predictor effect size - Ordinal") +
+  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
+  scale_color_gradientn(colours = rev(pal2)) +
+  scale_shape_manual(values=c(15, 16)) +
+  artyfarty::theme_scientific() + 
+  guides(color = "none") +
+  facet_wrap(~type, scales = 'free') +
+  theme(strip.background = element_blank())#,
+        #legend.position="none")
+
+ggsave(here("Plots", "Ord_Int_All_Effects.pdf"), height = 8, width = 9)
+ggsave(here("Plots", "Ord_Int_All_Effects.jpg"), height = 8, width = 9)
+```
+
+
