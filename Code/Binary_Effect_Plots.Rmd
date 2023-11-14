@@ -149,6 +149,11 @@ rs <- rs %>% bind_rows(rs2) %>%
     var %in% log_shape ~ "Log-Shape Ratio",
     TRUE ~ NA)) 
 rm(rs2)
+
+
+ms <- bind_rows(lms %>% mutate(mass = "lm"), gms %>% mutate(mass = "gm"), rs %>% mutate(mass = "none"))
+
+ms %>% write_csv(here("Data", "Binary_Effects.csv"))
 ```
 
 ## Plot Color
@@ -156,10 +161,6 @@ rm(rs2)
 ### Plot All
 Plotting the metric effect sizes for all metrics, broken up by "type"
 ```{r}
-
-ms <- bind_rows(lms %>% mutate(mass = "lm"), gms %>% mutate(mass = "gm"), rs %>% mutate(mass = "none"))
-
-
 ms %>% 
   group_by(var) %>% mutate(mean = mean(val)) %>% ungroup() %>% group_by(type)  %>% 
   ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean, shape = mass)) +
@@ -332,7 +333,7 @@ pa2 <- ms %>% filter(var %in% accurate, type =='Functional Index') %>%
   labs(x = "") +
   xlim(-6, 5) +
   artyfarty::theme_scientific() +
-  labs(title = "Functional Index") +
+  labs(title = "Functional Indices") +
   theme(strip.background = element_blank(),
         plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
         axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),

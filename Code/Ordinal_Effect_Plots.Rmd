@@ -149,6 +149,10 @@ rs <- rs %>% bind_rows(rs2) %>%
     var %in% log_shape ~ "Log-Shape Ratio",
     TRUE ~ NA)) 
 rm(rs2)
+
+ms <- bind_rows(lms %>% mutate(mass = "lm"), gms %>% mutate(mass = "gm"), rs %>% mutate(mass = "none"))
+
+ms %>% write_csv(here("Data", "Ordinal_Effects.csv"))
 ```
 
 ## Plot Color

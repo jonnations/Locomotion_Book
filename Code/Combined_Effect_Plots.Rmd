@@ -1,0 +1,179 @@
+---
+title: "Combined Effect Plots"
+---
+
+```{r}
+pacman::p_load(tidyverse, tidybayes, here, patchwork, glue, ggthemes, tidytext, grid)
+
+
+bs <- read_csv(here("Data", "Binary_Effects.csv")) %>% 
+  mutate(method = "bin")
+os <- read_csv(here("Data", "Ordinal_Effects.csv")) %>% 
+  mutate(method = "ord")
+
+ms <- bind_rows(bs, os)
+rm(bs, os)
+
+
+accurate = c("PES2", "HPI", "PES", "MANUS", "Ppl", "Hl", "OLI", "Pipl", "MANUS2", "FEB", "Rl", "Ipl", "Uol", "Fl", "Ul", "Mtl",  "lsPpl", "lsCl", "lsUol", "lsIsl", "lsMtl", "lsTpw", "lsIpl", "lsRl", "lsUl")
+```
+
+## Figure 2 : Ordinal and Binary metric effect plots
+
+### Binary
+
+```{r}
+source(here("Code","Name_Change.R")) # nm_change function
+
+pa1 <- ms %>% filter(method == "bin",
+                     var %in% accurate, 
+                     type =='Log-Shape Ratio') %>% 
+  mutate(var = str_remove(var, '^ls')) %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  labs(x = "") +
+  artyfarty::theme_scientific() +
+  labs(title = "Log-Shape Ratios", subtitle = "Binary") +
+  xlim(-6, 7) +
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
+        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
+        plot.title = element_text(hjust = 0)) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+pa2 <- ms %>% filter(method == "bin",
+                     var %in% accurate,
+                     type =='Functional Index') %>% 
+  #mutate(var = str_remove(var, '^ls')) %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  labs(x = "", subtitle = "Binary") +
+  xlim(-6, 7) +
+  artyfarty::theme_scientific() +
+  labs(title = "Functional Indices") +
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
+        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
+        plot.title = element_text(hjust = 0)) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+pa3 <- ms %>% filter(method == "bin",
+                     var %in% accurate,
+                     type =='Linear Measurement') %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type),  shape = mass)) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7,
+                     show.legend = FALSE) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  xlim(-6, 7) +
+  labs(x = "", title = "Linear Measurements", subtitle = "Binary") +
+  scale_shape_manual(values=c("lm" = 1, "gm" = 15),
+                     breaks = c("lm", "gm"),
+                     name = "Body Size\nMetric",
+                     labels=c("log(Mass)", "Geometric\nMean")) +
+  artyfarty::theme_scientific() + 
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, -0.5, 0), "lines"),
+        axis.title.x = element_text(margin=margin(0,0,-10,0)),
+        plot.title = element_text(hjust = 0)) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+
+p_bin <- (pa1 / pa2 / pa3) 
+```
+
+### Ordinal
+
+```{r}
+pa1 <- ms %>% filter(method == "ord",
+                     var %in% accurate, 
+                     type =='Log-Shape Ratio') %>% 
+  mutate(var = str_remove(var, '^ls')) %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  labs(x = "", y = "") +
+  artyfarty::theme_scientific() +
+  labs(title = "", subtitle = "Ordinal") +
+  xlim(-6, 7) +
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
+        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
+        plot.title = element_text(hjust = 0),
+        axis.text.y=element_blank()) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+pa2 <- ms %>% filter(method == "ord",
+                     var %in% accurate,
+                     type =='Functional Index') %>% 
+  #mutate(var = str_remove(var, '^ls')) %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  labs(x = "", y = "", subtitle = "Ordinal") +
+  xlim(-6, 7) +
+  artyfarty::theme_scientific() +
+  labs(title = "") +
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
+        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
+        plot.title = element_text(hjust = 0),
+        axis.text.y=element_blank()) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+pa3 <- ms %>% filter(method == "ord",
+                     var %in% accurate,
+                     type =='Linear Measurement') %>% 
+  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
+  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type),  shape = mass)) +
+  stat_pointinterval(.width = 0.8, 
+                     position = position_dodge(width = .75),
+                     linewidth = 1.7) +
+  geom_vline(xintercept = 0, linetype = 3) + 
+  scale_y_reordered("") +
+  xlim(-6, 7) +
+  labs(x = "", title = "", y = "", subtitle = "Ordinal") +
+  scale_shape_manual(values=c("lm" = 1, "gm" = 15),
+                     breaks = c("lm", "gm"),
+                     name = "Body Size\nMetric",
+                     labels=c("log(Mass)", "Geometric\nMean")) +
+  artyfarty::theme_scientific() + 
+  theme(strip.background = element_blank(),
+        plot.margin = unit(c(0.2, 0, -0.5, 0), "lines"),
+        axis.title.x = element_text(margin=margin(0,0,-10,0)),
+        plot.title = element_text(hjust = 0),
+        axis.text.y=element_blank()) +
+  guides(shape = guide_legend(override.aes = list(size=8)))
+
+
+p_ord <- (pa1 / pa2 / pa3) 
+```
+
+```{r}
+(p_bin | p_ord) + plot_annotation(caption = expression("Metric effect size"~beta)) &
+  theme(plot.caption = element_text(hjust=0.58, size=rel(1.2)))
+
+ggsave(here("Plots", "Combined_Effects_Some_BW.pdf"), height = 11, width = 8)
+ggsave(here("Plots", "Combined_Effects_Some_BW.jpg"), height = 11, width = 8)
+```
