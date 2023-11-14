@@ -1,9 +1,7 @@
 ---
-title: "Ordinal Results Table"
+title: "Effect Results Table"
 #output: html_notebook
 ---
-
-
 
 # Ordinal
 
@@ -133,8 +131,6 @@ ot <- bind_rows(nmi, mi) %>%
 ```
 ## Add Phylo Signal
 
-## Add Pylo Signal
-
 ```{r}
 ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
 
@@ -145,6 +141,7 @@ ot %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>%
 ```{r}
 rm(list_no_mis, list_mis)
 ```
+
 
 # Binary 
 
