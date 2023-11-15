@@ -176,4 +176,5 @@ p_ord <- (pa1 / pa2 / pa3)
 
 ggsave(here("Plots", "Combined_Effects_Some_BW.pdf"), height = 11, width = 8)
 ggsave(here("Plots", "Combined_Effects_Some_BW.jpg"), height = 11, width = 8)
+ggsave(here("Plots", "Figure_2.png"), height = 11, width = 8)
 ```

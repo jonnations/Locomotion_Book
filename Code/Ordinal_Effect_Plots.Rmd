@@ -12,10 +12,6 @@ Packages and Data
 
 pacman::p_load(tidyverse, googlesheets4, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes, ggstar, tidytext, grid)
 
-options(brms.backend = "cmdstanr")
-
-scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
-
 here::i_am("README.md")
 here()
 
@@ -155,38 +151,6 @@ ms <- bind_rows(lms %>% mutate(mass = "lm"), gms %>% mutate(mass = "gm"), rs %>%
 ms %>% write_csv(here("Data", "Ordinal_Effects.csv"))
 ```
 
-## Plot Color
-
-```{r}
-
-ms <- bind_rows(lms %>% mutate(mass = "lm"), gms %>% mutate(mass = "gm"), rs %>% mutate(mass = "none"))
-
-
-ms %>% 
-  group_by(var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean, shape = mass)) +
-  stat_pointinterval(.width = c(.66, .89), 
-                     position = position_dodge(width = .75)) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  #scale_fill_manual(values = pal) +
-  scale_y_reordered("") +
-  labs(x = expression("Metric effect size"~beta)) +
-  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
-  scale_color_gradientn(colours = rev(pal2)) +
-  scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
-                     breaks = c("lm", "gm"),
-                     name = "Body Size\nMetric",
-                     labels=c("log(Mass)", "Geometric\nMean")) +
-  artyfarty::theme_scientific() + 
-  guides(color = "none") +
-  facet_wrap(~factor(type, levels=c('Log-Shape Ratio','Functional Index','Linear Measurement')), scales = 'free') +
-  theme(strip.background = element_blank()) +
-  guides(shape = guide_legend(override.aes = list(size=8)))#,
-        #legend.position="none")
-
-ggsave(here("Plots", "O_Effects_All.pdf"), height = 8, width = 9)
-```
-
 ## Plot BW
 
 ```{r}
@@ -215,6 +179,7 @@ ms %>%
         #legend.position="none")
 
 ggsave(here("Plots", "O_Effects_All_BW.pdf"), height = 8, width = 9)
+ggsave(here("Plots", "Figure_S2.png"), height = 8, width = 9)
 ```
 
 

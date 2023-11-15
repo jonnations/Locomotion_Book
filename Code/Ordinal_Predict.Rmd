@@ -12,7 +12,6 @@ Take model lists, then use them one by one to predict climbing in the fossil tax
 
 pacman::p_load(tidyverse, brms, cmdstanr, here, tidybayes, patchwork, glue, ggthemes, furrr)
 
-options(brms.backend = "cmdstanr")
 
 scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
 
@@ -21,8 +20,6 @@ here()
 
 var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
-nms <- read_rds(here("Data", "Order_Names.Rds"))
-
 
 ```
 
@@ -232,19 +229,8 @@ plan(multisession, workers = 6)
 
 
 pred_df <- future_map2(list_o2, nm, ~nnn(.x, .y)) %>% bind_rows()  %>% 
-  #write_csv(here("Data", "Fossil_Ord_Int_Predictions.csv")) %>% 
   mutate(method = "Fossil",
          substrate = NA)
-
-
-#pred_df_ext_full <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols), 
-#                             ~nnn2(..1, ..2, ..3, ..4)) %>% 
-#  bind_rows() %>% 
-#  mutate(method = "Full",
-#         substrate = case_when(
-#    Genus_species %in% extant_climb ~ "Climb",
-#    TRUE ~ "Ground"
-#  ))
 
 
 pred_df_ext_full_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a), 
@@ -255,16 +241,6 @@ pred_df_ext_full_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a)
     Genus_species %in% extant_climb ~ "Climb",
     TRUE ~ "Ground"
   ))
-
-
-#pred_df_ext_fos <- future_pmap(list(list_o2, nm, model_dat, sel_cols), 
-#                             ~nnn3(..1, ..2, ..3, ..4)) %>% 
-#  bind_rows() %>% 
-#  mutate(method = "Fossil",
-#         substrate = case_when(
-#    Genus_species %in% extant_climb ~ "Climb",
-#    TRUE ~ "Ground"
-#  ))
 
 
 pred_df_ext_fos_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a), 
@@ -279,16 +255,12 @@ pred_df_ext_fos_avg <- future_pmap(list(list_o2, nm, model_dat_avg, sel_cols_a),
 
 plan(sequential)
 
-#pred_all <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_df) %>% filter(var %in% var_acc) %>% 
-  #write_csv(here("Data", "Ordinal_Preds.csv")) 
 
 pred_all_avg <- bind_rows(pred_df_ext_full_avg, pred_df_ext_fos_avg, pred_df) %>% filter(var %in% var_acc) %>% 
   write_csv(here("Data", "Ordinal_Preds.csv")) 
 
-rm(#pred_df_ext_full, pred_df_ext_fos, 
-   pred_df, pred_df_ext_full_avg, pred_df_ext_fos_avg)
+rm(pred_df, pred_df_ext_full_avg, pred_df_ext_fos_avg)
 
-#pred_all <- read_csv(here("Data", "All_Ord_Int_Predictions.csv"))
 ```
 
 
@@ -314,7 +286,6 @@ d <- list_o2m$mod1 %>%
                     #allow_new_levels = TRUE, 
                     re_formula = NULL) %>% 
     as.data.frame() %>% 
-    #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
     select('Genus_species',  '.draw', '.category', 'Prob_of_Climbing') %>% 
     arrange(Genus_species, .draw, .category) %>% 
     pivot_wider(names_from = .category, 
@@ -348,7 +319,6 @@ d <- list_o2m$mod1 %>%
     add_epred_draws(newdata = model_dat, 
                     resp = "LocOrd2",
                     value = "Prob_of_Climbing",
-                    #allow_new_levels = TRUE, 
                     re_formula = NA) %>% 
     as.data.frame() %>% 
     #select(Genus_species, Specimen_Num, .draw, .category, Prob_of_Climbing) %>%
@@ -434,12 +404,8 @@ df5 <- pred_ext(list_o2m$mod5, fdat %>% filter(Genus_species %in% c('Ignacius_cl
 
 df6 <- pred_ext(list_o2m$mod6, fdat %>% filter(Genus_species %in% c('Dryomomys_szalayi')))
 
-df7 <- pred_ext(list_o2m$mod7, fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi'))) #%>% 
-#                  select(-Specimen_Num) %>% 
-#                  mutate(Specimen_Num = "mean_values") %>%
-#                  group_by(Genus_species, Specimen_Num) %>% 
-#                  summarise_at(14:93, mean, na.rm = T))
-#
+df7 <- pred_ext(list_o2m$mod7, fdat %>% filter(Genus_species %in% c('Kryptobaatar_dashzevegi'))) 
+
 df8 <- pred_ext(list_o2m$mod8, fdat %>% filter(Genus_species %in% c('Juramaia_sinensis', 'Cokotherium_jiufotangensis')))
 
 df9 <- pred_ext(list_o2m$mod9, fdat %>% filter(Genus_species %in% c('Filikomys_primaevus')))
@@ -456,14 +422,13 @@ rm(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11)
 
 ```{r}
 
-pred_all2 <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_fos) %>% #filter(var %in% var_acc) %>% 
+pred_all2 <- bind_rows(pred_df_ext_full, pred_df_ext_fos, pred_fos) %>% 
   mutate(draw = rep(1:4000, times = nrow(.)/4000)) %>% 
-  #THIS IS AVERAGING PER SPECIES
-  #group_by(substrate, method, Genus_species, draw) %>% 
-  #summarize(Prob_of_Climbing = mean(Prob_of_Climbing, na.rm = TRUE)) %>% ungroup() 
-  mutate(var = "combined") %>% select(!draw) %>% mutate(.draw = as.numeric(.draw),
-                                                        id = as.numeric(id))
-  #write_csv(here("Data", "Ord_Multiple_Predictions.csv"))
+
+  mutate(var = "combined") %>% select(!draw) %>% 
+  mutate(.draw = as.numeric(.draw),
+         id = as.numeric(id))
+
 
 pred_all <- read_csv(here("Data", "Ordinal_Preds.csv")) %>% bind_rows(pred_all2) %>% write_csv(here("Data", "Ordinal_Preds.csv"))
 
@@ -477,18 +442,12 @@ rm(pred_all_avg, pred_all2, pred_df_ext_fos, pred_df_ext_full, pred_fos)
 
 ```{r}
 pred_all <- read_csv(here("Data", "Ordinal_Preds.csv"))
-
-
-d2 <- c('#a6761d','#d95f02','#7570b3','#1b9e77')
-d3 <- c('#5e1ea6', '#0d57ff',  '#31c1bb', '#66a61e')
-
-d4 <- c(P4 = '#770194', P3 = '#1981db', P2 = "#2abb9c", P1 = '#79bc23')
 ```
 
 
 # Plots
 
-## Extant Plots
+## Extant Plots no phylo
 ```{r}
 
 p1 <- pred_all %>% 
@@ -570,7 +529,98 @@ p1/p2  +
 
 ggsave(here("Plots", "Ord_Pred_Extant2.pdf"), width = 11, height = 8)
 ggsave(here("Plots", "Ord_Pred_Extant2.jpg"), width = 11, height = 8)
+ggsave(here("Plots", "Figure_4.png"), width = 11, height = 8)
 ```
+
+
+
+
+## Extant Plots w/ phylo
+```{r}
+
+p1 <- pred_all %>% 
+   
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_climb) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression")) %>%
+  mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y =fct_relevel(var,var_acc) , 
+             x = n, 
+             fill = rank)) + 
+  geom_bar(position = "fill", 
+           stat = 'identity', 
+           alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+  scale_fill_grey(start = 0.8, end = 0, name = "") +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x="", title = "Climbing Species") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='none',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p2 <- pred_all %>% 
+   mutate(rank= case_when(max_rank == "P1"  ~ "Arboreal",
+                          max_rank == "P2"  ~ "Scansorial",
+                          max_rank == "P3"  ~ "Terrestrial",
+                          max_rank == "P4"  ~ "Inter-Substrate"),
+          rank = fct_relevel(rank, 
+                             c("Arboreal", 
+                               "Scansorial", 
+                               "Terrestrial", 
+                               "Inter-Substrate"))) %>%
+  filter(method == "Full",
+         var %in% var_acc,
+         Genus_species %in% extant_ground) %>% 
+  group_by(var, Genus_species, rank) %>% count(max_rank) %>% drop_na() %>% 
+  mutate(var = recode(var, combined = "Multiple\nRegression"))  %>%
+   mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y = fct_relevel(var,var_acc) , x = n, fill = rank)) + 
+  geom_bar(position = "fill", stat = 'identity', alpha = 0.8) +
+  #scale_fill_manual(values = rev(d4)) + 
+  #scale_fill_viridis_d(begin = 0.9, end = 0) +
+    scale_fill_grey(start = 0.8, end = 0, name = "") +
+  scale_x_continuous(breaks = c(0,0.5, 1), label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))) +
+  labs(y = "", x = "Proportion of Estimates",  title = "Non-Climbing Species") +
+  theme_classic() +
+  theme( panel.border = element_blank(),
+         axis.line = element_line(colour = "NA"),
+         axis.ticks = element_line(linewidth = rel(0.25)),
+         legend.position='bottom',
+         strip.background = element_blank(),
+         strip.text = element_text(face = "italic")
+         ) + 
+  scale_y_discrete(limits=rev) +
+  facet_wrap(~Genus_species, ncol = 5)
+
+p1/p2  + 
+  plot_layout(guides = "collect") &
+  theme(legend.position='bottom')
+
+ggsave(here("Plots", "Ord_Pred_Extant_Full.pdf"), width = 11, height = 8)
+ggsave(here("Plots", "Ord_Pred_Extant_Full.jpg"), width = 11, height = 8)
+ggsave(here("Plots", "Figure_S3.png"), width = 11, height = 8)
+```
+
+
 
 
 
@@ -698,5 +748,6 @@ p1/p2 / p3 +
 
 ggsave(here("Plots", "Ord_Pred_Fossil.pdf"), width = 10, height = 10)
 ggsave(here("Plots", "Ord_Pred_Fossil.jpg"), width = 10, height = 10) 
+ggsave(here("Plots", "Figure_6.png"), width = 10, height = 10)
 ```
 

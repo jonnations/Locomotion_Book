@@ -20,7 +20,6 @@ here()
 
 var_complete <- read_rds(here("Data", "var_complete.Rds"))
 var_missing <- read_rds(here("Data", "var_missing.Rds"))
-nms <- read_rds(here("Data", "Order_Names.Rds"))
 
 
 #Color palette
@@ -362,6 +361,7 @@ t3
 
 ggsave(here("Plots", "Bin_Pred_Fossil.pdf"), height = 8, width = 13)
 ggsave(here("Plots", "Bin_Pred_Fossil.jpg"), height = 8, width = 13)
+ggsave(here("Plots", "Figure_5.png"), height = 8, width = 13)
 ```
 
 
@@ -399,5 +399,6 @@ wrap_plots(t1, t2, ncol = 1) + plot_annotation(tag_levels = "a")
 
 ggsave(here("Plots", "Bin_Pred_Extant.pdf"), height = 10, width = 13)
 ggsave(here("Plots", "Bin_Pred_Extant.jpg"), height = 10, width = 13)
+ggsave(here("Plots", "Figure_3.png"), height = 10, width = 13)
 ```
 
