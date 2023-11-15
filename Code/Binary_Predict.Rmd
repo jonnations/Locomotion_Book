@@ -333,17 +333,6 @@ hplot <- function(groups, method){
 
 ```
 
-###  big df
-
-```{r}
-hplot(old, "Fossil") + 
-  ggtitle("Mesozoic Therian Predictions") + 
-  theme(#axis.text.x = element_blank(),
-        plot.margin = unit(c(0, 0, 0, 0), "lines"),
-        axis.title.y = element_blank(),
-        panel.grid.major.y = element_blank())
-```
-
 
 ### Big Plot
 ```{r}
