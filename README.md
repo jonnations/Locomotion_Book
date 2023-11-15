@@ -49,7 +49,7 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 #### Predictions & Plots
 
-- Most plots have a .pdf along with a .jpg version for using in google docs. Final versions will be .tiff
+- Most plots have a .pdf along with a .jpg version for using in google docs. Final versions will be .tiff.
 
 - Extant "model" taxa predictions and fossil predictions are made in the same scripts: `Code/Binary_Predict.Rmd` and `Code/Ordianl_Predict.Rmd`. The scripts generate the predictions, then plot them as seen in **Figures 3, 4, 5, & 6**.
 
