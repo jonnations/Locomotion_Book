@@ -7,8 +7,8 @@ author:
     affiliation: Kent State University
   - name: David Grossnickle
     affiliation: Oregon Institute of Technology
-date: "`r.Sys.Date()`"
-output: html_document
+#date: "`r.Sys.Date()`"
+#output: html_document
 ---
 
 Repository for the draft of "Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals"
