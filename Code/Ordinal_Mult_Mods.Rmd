@@ -15,7 +15,7 @@ knitr::opts_chunk$set(warning = FALSE)
 ### Load packages and functions  
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggpattern, magick)
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
 
 options(brms.backend = "cmdstanr")
 

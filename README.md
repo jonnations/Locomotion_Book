@@ -28,6 +28,14 @@ Working through the project
 
 - The contents of this repo is split up into 3 main directories:`Code`, `Data`, and `Plots`. We use the awesome package "[here](https://here.r-lib.org/)" to deal with the repo structure. Currently anyone can download the repo ***as is*** and run the code without dealing with paths (if all packages are installed).
 
+## Packages:
+- This is the list of packages used throughout the repository. If these are all installed, then everything *should just work* for anyone that downloads this repository. 
+
+- `tidyverse`, `here`, `glue`, `brms`, `cmdstanr`, `kableExtra`,  `ape`, `tidybayes`, `patchwork`, `ggthemes`, `furrr`.
+
+- Note that if you want to use `cmdstanr`, which improves the compilation time and execution time of the `brms` models, then it's a little more involved than just `install.packages()` (but definitely worth it!). See [this link](https://mc-stan.org/cmdstanr/articles/cmdstanr.html) to get started.
+
+- If you want to plot the tree (Figure 1), you need these packages: `ggtree`, `ggtreeExtra`, `tidytree`, `treeio`. If you don't want to plot it, then don't bother. 
 
 ## **`Code`** 
 
@@ -36,15 +44,30 @@ Working through the project
 #### 
 
 
-#### Polychoric PCA and Cluster Analyses  
-- We are interested if the multivariate diet matches traditional diet categories from several commonly used classification schemes. To do this, we want to project the importance rankings of the 13 food items into a multivariate diet space, then run a cluster analysis to identify natural groupings in dietspace. This is outlined in the `Code/Ord_Clust_Plot_FIgure_2.Rmd/` script. As the dietary importance rankings are ordinal rankings, and not continuous, we use a method called polychoric PCA, which is designed for ordinal variables. We estimate a polychoric correlation matrix, the project the species into diet space. The process is pretty well annotated in the script. Then we use the package [`mclust`](https://cran.r-project.org/web/packages/mclust/vignettes/mclust.html), which performs cluster analyses using finite normal mixture modeling, to determine the natural clusters. Since there is no really strong preference for a number of clusters, we calculate $k$ = 3, 4, 5, and 6. Then we use the adjusted Rand index to compare these to 4 classification schemes. More details in the text. This generates the Figure 2 plots, which are stored as `Plots/Figure_2_Diet_Clusters.pdf`.
+#### Organize Data  
+- The first step is to take the raw data from our measurements and calculate the indices, geometric means, and log-shape ratios. The raw data are (`Data/Raw_Data_Extant.csv`, and `Data/Raw_Data_Fossil.csv`) and are presented as **Tables S1** and **S6** in the Supporting Information. We also scale the raw data to a mean of zero and a standard deviation of 1, which puts all values on the same scale and helps interpretability, comparability, prior choice, and model convergence. All of this is done in `Code/Data_load.Rmd`. The outputs are called `Data/Extant_Master.csv` and `Data/Fossil_Master.csv`.
 
-#### Prior Predictive Checks and Model Estimation
-- All of the models, prior and posterior checking, predictions, data wrangling, etc. are found in this directory.
+#### Run Models
 
-- To determine the parameters for each prior distribution on the response variables, we ran prior predictive checks. Similar to the model scripts, these are in the `Code/Prior_Pred_Checks/` directory and labeled `FOODITEM_Prior_Check.Rmd`. The script `Prior_Pred_Checks_All.Rmd` runs all 13 of these scripts, and stores the outputs in the `Code/Prior_Pred_Checks/prior_pred_outputs` directory. `Code/Prior_Preds_Figure_S1.Rmd` generates **Figure_S1_Prior_Pred_Checks.pdf**, stored in the `Plots` dir, shows the prior distributions that we used for each tooth metric for each food item. Note that we used a $N$(0,1) prior on all of our predictor variables, as they are all scaled to a mean of 0 and an sd of 1, and this loosely regularizing prior keeps the models in check but still allows for large effect sizes. 
+- We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor varaibles. You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
 
-- All of our ordinal **brms** models use one of three priors on the response variable (the ranks): A Normal distribution, a Student- $T$ distribution, and a  Dirichlet Prior on the threshold (aka cutpoint) values. The Dirichet prior script is found in `Dirichlet_Prior.R`. We used the Stan code described in [this Stan Discourse post](https://discourse.mc-stan.org/t/dirichlet-prior-on-ordinal-regression-cutpoints-in-brms/20640/3), written by [Staffan Betnèr](https://github.com/StaffanBetner), to create this prior. This code was generated from and informed by the case study by [Michael Betancourt](https://betanalpha.github.io/) found [here](https://betanalpha.github.io/assets/case_studies/ordinal_regression.html). We set the mean intercept	$\phi$ to 0 rather than have the model estimate it, which performed better in our simulations. See comment #9 in the discourse post.
+- Miltiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are avaialble. The outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`
+
+- Model result outputs are presented in **Tables S2** (`Data/Binary_Table.csv`) and **S3** (`Data/Ordinal_Table.csv`). These show the median and 89% probability intervals of each of the relevant parameters. Full model outputs (all ~500 parameters) can be viewed by loading the `Data/B_*_mods_*.rds` model files. The scripts to organize all of the outputs into reasonable format are in the script `Effect_Results_Tables.Rmd`. 
+
+#### Test Prediciton Accuracy
+
+- The scripts `Code/Binary_Prediction_Accuracy.Rmd` and `Code/Ordinal_Prediction_Accuracy.Rmd` generate Pareto-$k$ values using leave-one-out cross validation, and generate predictions for the extant species. These predictions are summarized as percentages of accurate predictions, both with and without the phylogeny as a group level effect. Outputs are `Data/Accuracy.csv` and `Data/Ord_Accuracy.csv` which are presented as **Tables S4** and **S5** in the supporting information.
+
+#### Predictions
+
+- Extant "model" taxa predictions and fossil predictions are made in the same scripts: `Code/Binary_Predict.Rmd` and `Code/Ordianl_Predict.Rmd`. 
+
+
+
+
+
+
 
 - The bulk of our results are from the multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). The scripts containing the models for each food item are in the `Code/Models/` directory and labeled `Mods_FOODITEM.Rmd`. Each script contains 15 models. To run all of these, visit the script `Code/Mod_All.Rmd`, which wrangles the data and calls each food item script individually. ***This Must Be Run Before the Plotting or Prediction Scripts*** because the brms model objects are necessary for those. The outputs of the models will be stored in the `Code/Models/mod_outputs` directory (see below). These are imported later for predictive and plotting scripts (it's better than running all the models again).
 
