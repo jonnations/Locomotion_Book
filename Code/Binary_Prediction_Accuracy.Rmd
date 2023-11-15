@@ -199,7 +199,7 @@ accs <- accuracy %>%
   filter(method == "no_phy_int")
 as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_list.rds"))
 
-accuracy %>% write_csv(here("Data", "Accuracy.csv"))
+accuracy %>% write_csv(here("Data", "Accuracy_Bin.csv"))
 ```
 
 
@@ -212,62 +212,5 @@ accuracy %>%
   
 ```
 
-
-## 2 Covariate Mult Mod
-
-
-```{r}
-list_m <- read_rds(here("Data","B_lm_mods_multi.Rds"))
-```
-
-Testing the predictive accuracy of the two covariate model used in the T. wilsoni predictions. 
-
-```{r}
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
-
-pred1 <- map(1, ~bin_pred_phy_fn(list_m)) %>% 
-  bind_rows() %>% 
-  mutate(var = rep(sprintf("m_%d",seq(1:11)), each = 427),
-         method = 'phy_int',
-         mass = 'log_mass')
-
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
-
-pred2 <- map(1, ~bin_pred_nophy_fn(list_m)) %>% 
-  bind_rows() %>% 
-  mutate(var = rep(sprintf("m_%d",seq(1:11)), each = 427),
-         method = 'no_phy_int',
-         mass = 'log_mass')
-
-plan(sequential)
-
-m_pred <- bind_rows(pred1, pred2)
-```
-
-```{r}
-accuracy <- m_pred %>% 
-  group_by(method, var, mass) %>%  
-  summarise(accuracy = round((sum(dif == 0)/427) * 100, 
-                             digits = 1)) %>% 
-  select(var, accuracy, method, mass) %>% 
-  arrange(desc(accuracy)) 
-
-accuracy %>%
-  #filter(method == "no_phy_int") %>%
-  kbl() %>%
-  kable_classic_2(full_width = F)
-
-accs <- accuracy %>%
-  #filter(method == "no_phy_int") %>% 
-as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_mult_list.rds"))
-
-accuracy %>% write_csv(here("Data", "Accuracy_mult.csv"))
-```
-
-```
 
 

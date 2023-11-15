@@ -1,28 +1,13 @@
 # Locomotion_Book
 Repo for Locomotion Book Chapter
 
-Investigation into the morphological signature of arboreality in (small) mammals
+Investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinitis of early mammals and plesiadapiforms. 
 
 #### Goals:  
 
 1) Determine which postcranial measurements, or which form of the measurements, are the best predictors of climbing.
 2) Explore the relationship between the method of categorizing locomotion and the preferred morphological measurements. 
 3) Predict the locomotion of fossil species using the measurements with the highest predictive ability
-
-16 October: To Do
-Working through the project
-
-[X] Run All Models in their final form
-  - `Binary_Mods.Rmd` and `Ordinal_Mods.Rmd`
-  
-[X] Run Multiple regression prediction Models
-  - `Binary_Mult_Mods.Rmd`
-  - `Ordinal_Mult_Mods.Rmd`
-  
-[] Do all predictions on final models
-  - add "combined" predictions into reg pred script
-  - predict all, including "combined"
-
 
 ## Layout:
 
@@ -49,7 +34,7 @@ Working through the project
 
 #### Run Models
 
-- We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor varaibles. You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
+- We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor varaibles. We use multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
 
 - Miltiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are avaialble. The outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`
 
@@ -59,20 +44,30 @@ Working through the project
 
 - The scripts `Code/Binary_Prediction_Accuracy.Rmd` and `Code/Ordinal_Prediction_Accuracy.Rmd` generate Pareto-$k$ values using leave-one-out cross validation, and generate predictions for the extant species. These predictions are summarized as percentages of accurate predictions, both with and without the phylogeny as a group level effect. Outputs are `Data/Accuracy.csv` and `Data/Ord_Accuracy.csv` which are presented as **Tables S4** and **S5** in the supporting information.
 
-#### Predictions
+#### Predictions & Plots
 
-- Extant "model" taxa predictions and fossil predictions are made in the same scripts: `Code/Binary_Predict.Rmd` and `Code/Ordianl_Predict.Rmd`. 
-
-
+- Extant "model" taxa predictions and fossil predictions are made in the same scripts: `Code/Binary_Predict.Rmd` and `Code/Ordianl_Predict.Rmd`. The scripts generate the predictions, then plot them as seen in **Figures 3, 4, 5, & 6**.
 
 
+## **`Data`**
+
+- Most of the data are outputs that are called in other scripts, like models being called in prediction scripts. Most of these are discussed above. Here is a list of the relevant **Supporting Information** tables and data:
+  - **Table S1**: `Raw_Data_Extant.csv`
+  - **Table S2**: `Binary_Table.csv`
+  - **Table S3**: `Ordinal_Table.csv`
+  - **Table S4**: `Accuracy_Bin.csv`
+  - **Table S5**: `Accuracy_Ord.csv` 
+  - **Table S6**: `Raw_Data_Fossil.csv`
+
+## **`Plots`**
+
+- The tree plot, **Figure 1**, was made using the `Code/Tree_Plot.Rmd` script. The output is called `Plots/tre_test_rectangle.pdf`.
+
+- The effect output plots are generated in the scipts `Code/Binary_Effect_Plots.Rmd`, `Code/Ordinal_Effect_Plots.Rmd`, and `Code/Combined_Effect_Plots.Rmd`. 
+  - **Figures 2**: `Combined_Effects_Some_BW.pdf`
+  - **Figures S1**: `B_Effects_All_BW.pdf`
+  - **Figures S2**: `O_Effects_All_BW.pdf`
+
+  
 
 
-
-- The bulk of our results are from the multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). The scripts containing the models for each food item are in the `Code/Models/` directory and labeled `Mods_FOODITEM.Rmd`. Each script contains 15 models. To run all of these, visit the script `Code/Mod_All.Rmd`, which wrangles the data and calls each food item script individually. ***This Must Be Run Before the Plotting or Prediction Scripts*** because the brms model objects are necessary for those. The outputs of the models will be stored in the `Code/Models/mod_outputs` directory (see below). These are imported later for predictive and plotting scripts (it's better than running all the models again).
-
-- After running the models, we estimated the LOO model weights of each model using stacking. We first calculated the weights for each model for each metric (3 per metric, each with a different prior on the response, see above). Then we took the models with the highest weight for each metric (n=5) and estimated the model weights for these. This is all in the `Mods_FOODITEM.Rmd` scripts. The model weights are collected iteratively as each food item file runs in `Code/D_All_Models.Rmd`, and the weights are stored in the file `Data/Test_weights_all.csv`. 
-
-- The parameter estimates of all the models with a model weight >0 are found in `Data/Table_S2_Model_Results.csv`, and kept as a supporting file in the manuscript. The script for generating this table is called `Code/Table_S2_Model_Results.Rmd`. There is a lot of data wrangling involved to get the table formatted like it is. 
-
-#### Model Posterior Validation & Accuracy Checks
