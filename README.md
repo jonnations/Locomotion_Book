@@ -1,7 +1,19 @@
-# Locomotion_Book
-Repo for Locomotion Book Chapter
+---
+title: Locomotion_Book  
+author: 
+  - name: Jonathan Nations
+    affiliation: University of Chicago
+  - name: Lucas Weaver
+    affiliation: Kent State University
+  - name: David Grossnickle
+    affiliation: Oregon Institute of Technology
+date: "`r.Sys.Date()`"
+output: html_document
+---
 
-Investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinitis of early mammals and plesiadapiforms. 
+Repository for the draft of "Preditors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals"
+
+This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinitis of early mammals and plesiadapiforms. 
 
 #### Goals:  
 
