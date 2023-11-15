@@ -65,7 +65,7 @@ cln2 <- function(df) as_draws_df(df)[17] %>% gather(var, val) %>%
 
 linear = c("Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "Ipl", "Pppl", "Mtl", "Ppl", "Mcl", "Tpw", "Isl", "Il", "Pel", "Hpw", "Mcw", "Cl", "Ppw", "Pipl")
 
-index = c("SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
+index = c("HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
 
 log_shape = c("lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl")
 
@@ -93,7 +93,6 @@ rm(lms2)
 ## Geometric Mean Models  
 
 ```{r message = FALSE, warning=FALSE}
-
 # Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
 gms <- map(list_b_gm[2:13], cln) %>% 
   bind_rows() %>% mutate(var = str_replace(var, "b_",""))
@@ -118,17 +117,15 @@ Includes functional indices and log-shape ratios
 # Function -> pulls the th column, b_ or the MASS SLOPE, then pivots in long, and scales it to probability
 cln <- function(df) as_draws_df(df)[2] %>% 
   gather(var, val) %>% 
-  mutate(#val = inv_logit_scaled(val),
-         var = names(as_draws_df(df)[2]))
+  mutate(var = names(as_draws_df(df)[2]))
 
 # Same for missing
 cln2 <- function(df) as_draws_df(df)[16] %>% gather(var, val) %>% 
-  mutate(#val = inv_logit_scaled(val),
-         var = names(as_draws_df(df)[16]))
+  mutate(var = names(as_draws_df(df)[16]))
 
 linear = c("Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "Ipl", "Pppl", "Mtl", "Ppl", "Mcl", "Tpw", "Isl", "Il", "Pel", "Hpw", "Mcw", "Cl", "Ppw", "Pipl")
 
-index = c("SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
+index = c("HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
 
 log_shape = c("lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl")
 
@@ -167,10 +164,8 @@ ms %>%
   stat_pointinterval(.width = c(.66, .89), 
                      position = position_dodge(width = .75)) +
   geom_vline(xintercept = 0, linetype = 3) + 
-  #scale_fill_manual(values = pal) +
   scale_y_reordered("") +
-  labs(x = "Phenotypic predictor effect size") +
-  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
+  labs(x = expression("Metric effect size"~beta)) +
   scale_color_gradientn(colours = rev(pal2)) +
   scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
                      breaks = c("lm", "gm"),
@@ -178,59 +173,12 @@ ms %>%
                      labels=c("log(Mass)", "Geometric\nMean")) +
   artyfarty::theme_scientific() + 
   guides(color = "none") +
-  facet_wrap(~type, scales = 'free') +
-  theme(strip.background = element_blank()) +
-  guides(shape = guide_legend(override.aes = list(size=8)))#,
-        #legend.position="none")
-
-ggsave(here("Plots", "B_Effects_All.pdf"), height = 8, width = 9)
-ggsave(here("Plots", "Bin_Effects_All.jpg"), height = 8, width = 9)
-```
-
-### Plot Accurate Predicitons
-
-Plotting accurate predictions
-Baed on the `Binary_Prediction_Accuracy` script, these all have an accuracy over 70%. It's worth noting that all of the log-shape-ratios have not-great accuracy except lsPpl.
-
-```{r}
-accurate = c("PES2", "HPI", "PES", "MANUS", "Ppl", "Hl", "OLI", "Pipl", "MANUS2", "FEB", "Rl", "Ipl", "Uol", "Fl", "Ul", "Mtl",  "lsPpl", "lsCl", "lsUol", "lsIsl", "lsMtl", "lsTpw", "lsIpl", "lsRl", "lsUl")
-```
-
-```{r}
-ms %>% filter(var %in% accurate) %>% 
-  group_by(mass, var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, val, type), color = mean, shape = mass)) +
-  stat_pointinterval(.width = 0.8, 
-                     position = position_dodge(width = .75),
-                     linewidth = 1.7) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  #scale_fill_manual(values = pal) +
-  scale_y_reordered("") +
-  labs(x = "Phenotypic predictor effect size") +
-  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
-  scale_color_gradientn(colours = rev(pal2)) +
-  scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
-                     breaks = c("lm", "gm"),
-                     name = "Body Size\nMetric",
-                     labels=c("log(Mass)", "Geometric\nMean")) +
-  artyfarty::theme_scientific() + 
-  guides(color = "none") +
-  facet_wrap(~factor(type, levels=c('Log-Shape Ratio','Functional Index','Linear Measurement')), scales = 'free') +
+  facet_wrap(~factor(type, levels=c('Log-Shape Ratio','Functional Index','Linear Measurement')), scales = 'free')  +
   theme(strip.background = element_blank()) +
   guides(shape = guide_legend(override.aes = list(size=8)))
 
-
-ggsave(here("Plots", "B_Effects_Some.pdf"),  height = 3, width = 9)
-ggsave(here("Plots", "B_Effects_Some.jpg"),  height = 3, width = 9)
+ggsave(here("Plots", "B_Effects_All.pdf"), height = 8, width = 9)
 ```
-
-ppp
-grid.force()
-grid.ls()
-
-grid.remove('key-5-1-bg.6-2-6-2')
-grid.remove('key-5-1-1.6-2-6-2')
-grid.remove('label-5-3.6-4-6-4')
 
 ## Plot BW
 
@@ -249,7 +197,7 @@ ms %>%
                      linewidth = 0.8) +
   geom_vline(xintercept = 0, linetype = 3) + 
   scale_y_reordered("") +
-  labs(x = "Phenotypic predictor effect size") +
+  labs(x = expression("Metric effect size"~beta)) +
   scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
                      breaks = c("lm", "gm"),
                      name = "Body Size\nMetric",
@@ -262,213 +210,7 @@ ms %>%
         #legend.position="none")
 
 ggsave(here("Plots", "B_Effects_All_BW.pdf"), height = 8, width = 9)
-ggsave(here("Plots", "Bin_Effects_All_BW.jpg"), height = 8, width = 9)
-```
-
-### Plot Accurate Predicitons
-
-Plotting accurate predictions
-Based on the `Binary_Prediction_Accuracy` script, these all have an accuracy over 70%. It's worth noting that all of the log-shape-ratios have not-great accuracy except lsPpl.
-
-
-```{r}
-ms %>% filter(var %in% accurate) %>% 
-  group_by(mass) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, val, type, fun = mean), shape = mass)) +
-  stat_pointinterval(.width = 0.8, 
-                     position = position_dodge(width = .75),
-                     linewidth = 1.7) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  scale_y_reordered("") +
-  labs(x = "Phenotypic predictor effect size") +
-  scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
-                     breaks = c("lm", "gm"),
-                     name = "Body Size\nMetric",
-                     labels=c("log(Mass)", "Geometric\nMean")) +
-  artyfarty::theme_scientific() + 
-  guides(color = "none") +
-  facet_wrap(~factor(type, levels=c('Log-Shape Ratio','Functional Index','Linear Measurement')), scales = 'free') +
-  theme(strip.background = element_blank()) +
-  guides(shape = guide_legend(override.aes = list(size=8)))
-
-
-ggsave(here("Plots", "B_Effects_Some_BW.pdf"), height = 3, width = 9)
-ggsave(here("Plots", "B_Effects_Some_BW.jpg"), height = 3, width = 9)
-```
-### Plot Accurate v2
-
-Plotting accurate predictions using patchwork. 
-
-```{r}
-source(here("Code","Name_Change.R")) # nm_change function
-
-pa1 <- ms %>% filter(var %in% accurate, type =='Log-Shape Ratio') %>% 
-  mutate(var = str_remove(var, '^ls')) %>% 
-  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
-  stat_pointinterval(.width = 0.8, 
-                     position = position_dodge(width = .75),
-                     linewidth = 1.7) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  scale_y_reordered("") +
-  labs(x = "") +
-  artyfarty::theme_scientific() +
-  labs(title = "Log-Shape Ratios") +
-  xlim(-6, 5) +
-  theme(strip.background = element_blank(),
-        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
-        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
-        plot.title = element_text(hjust = 0)) +
-  guides(shape = guide_legend(override.aes = list(size=8)))
-
-pa2 <- ms %>% filter(var %in% accurate, type =='Functional Index') %>% 
-  #mutate(var = str_remove(var, '^ls')) %>% 
-  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type))) +
-  stat_pointinterval(.width = 0.8, 
-                     position = position_dodge(width = .75),
-                     linewidth = 1.7) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  scale_y_reordered("") +
-  labs(x = "") +
-  xlim(-6, 5) +
-  artyfarty::theme_scientific() +
-  labs(title = "Functional Indices") +
-  theme(strip.background = element_blank(),
-        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
-        axis.title.x = element_text(size = 6, margin=margin(0,0,-3,0)),
-        plot.title = element_text(hjust = 0)) +
-  guides(shape = guide_legend(override.aes = list(size=8)))
-
-pa3 <- ms %>% filter(var %in% accurate, type =='Linear Measurement') %>% 
-  nm_change() %>% group_by(var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type),  shape = mass)) +
-  stat_pointinterval(.width = 0.8, 
-                     position = position_dodge(width = .75),
-                     linewidth = 1.7) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  scale_y_reordered("") +
-  xlim(-6, 5) +
-  labs(x = "Phenotypic predictor effect size", title = "Linear Measurements") +
-  scale_shape_manual(values=c("lm" = 1, "gm" = 15),
-                     breaks = c("lm", "gm"),
-                     name = "Body Size\nMetric",
-                     labels=c("log(Mass)", "Geometric\nMean")) +
-  artyfarty::theme_scientific() + 
-  theme(strip.background = element_blank(),
-        plot.margin = unit(c(0.2, 0, 0.3, 0), "lines"),
-        axis.title.x = element_text(margin=margin(0,0,-3,0)),
-        plot.title = element_text(hjust = 0)) +
-  guides(shape = guide_legend(override.aes = list(size=8)))
-
-
-
-(pa1 / pa2 / pa3) 
-
-ggsave(here("Plots", "B_Effects_Somev2_BW.pdf"), height = 11, width = 8)
-ggsave(here("Plots", "B_Effects_Somev2_BW.jpg"), height = 11, width = 8)
 ```
 
 
-
-
-# Mass Plots
-
-## Extract Slopes  
-
-#### Helper Functions
-
-```{r message = FALSE, warning=FALSE}
-# Function -> pulls the th column, b_ or the MASS SLOPE, then pivots in long, and scales it to probability
-cln <- function(df) as_draws_df(df)[3] %>% 
-  gather(var, val) %>% 
-  mutate(#val = inv_logit_scaled(val),
-         var = names(as_draws_df(df)[2]))
-
-# Same for missing
-cln2 <- function(df) as_draws_df(df)[3] %>% gather(var, val) %>% 
-  mutate(#val = inv_logit_scaled(val),
-         var = names(as_draws_df(df)[17]))
-
-linear = c("Sl", "Hl", "Hsw", "Hdw", "Uol", "Ul", "Rl", "Fl", "Fsw", "Fdw", "Tl", "Tmw", "Ipl", "Pppl", "Mtl", "Ppl", "Mcl", "Tpw", "Isl", "Il", "Pel", "Hpw", "Mcw", "Cl", "Ppw", "Pipl")
-
-index = c("SI", "HRI", "HEB", "OLI", "BI", "IM", "FRI", "FEB", "CI", "TRI", "MANUS2",  "PES", "MANUS",  "PRTI", "HPI", "MRI",  "PES2",  "MANUS3")
-
-log_shape = c("lsSl", "lsHl", "lsHsw", "lsHdw", "lsUol", "lsUl", "lsRl", "lsFl", "lsFsw", "lsFdw", "lsTl", "lsTmw", "lsIpl", "lsPppl", "lsMtl", "lsPpl", "lsMcl", "lsTpw", "lsIsl", "lsIl", "lsPel", "lsHpw", "lsMcw", "lsPpw", "lsCl", "lsPipl")
-
-```
-
-## Log-Mass Models
-
-```{r message = FALSE, warning=FALSE}
-# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
-lms <- map(list_b_lm[2:13], cln) %>% 
-  bind_rows() %>% mutate(var = str_replace(var, "b_",""), mass = "lm")
-
-lms2 <- map(list_b_lm[14:27], cln2) %>% 
-  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""), mass = "lm")
-
-lms <- lms %>% bind_rows(lms2) %>% 
-  mutate(type = case_when(
-    var %in% linear ~ "Linear Measurement",
-    var %in% index ~ "Index",
-    var %in% log_shape ~ "Log-Shape Ratio",
-    TRUE ~ NA)) 
-rm(lms2)
-```
-
-## Geometric Mean Models  
-
-```{r message = FALSE, warning=FALSE}
-
-# Function -> pulls the th column, b_ or the slope, then pivots in long, and scales it to probability
-gms <- map(list_b_gm[2:13], cln) %>% 
-  bind_rows() %>% mutate(var = str_replace(var, "b_",""), mass = "gm")
-
-gms2 <- map(list_b_gm[14:27], cln2) %>% 
-  bind_rows() %>% mutate(var = str_replace(var, "bsp_Locbin_mi",""), mass = "gm")
-
-gms <- gms %>% bind_rows(gms2) %>% 
-  mutate(type = case_when(
-    var %in% linear ~ "Linear Measurement",
-    var %in% index ~ "Index",
-    var %in% log_shape ~ "Log-Shape Ratio",
-    TRUE ~ NA))
-
-rm(gms2)
-```
-
-```{r}
-mas <- bind_rows(lms, gms)
-```
-
-## Plot ALl
-
-```{r}
-
-mas %>% 
-  group_by(var) %>% mutate(mean = mean(val)) %>% 
-  ggplot(aes(x = val, y = tidytext::reorder_within(var, mean, type), color = mean)) +
-  stat_pointinterval(.width = c(.66, .89), 
-                     position = position_dodge(width = .75)) +
-  geom_vline(xintercept = 0, linetype = 3) + 
-  #scale_fill_manual(values = pal) +
-  scale_y_reordered("") +
-  labs(x = "Phenotypic predictor effect size") +
-  #scico::scale_color_scico(palette = "hawaii", end = 0.9, begin = 0.1) +
-  scale_color_gradientn(colours = rev(pal2)) +
-  scale_shape_manual(values=c("none" = 16, "lm" = 1, "gm" = 15),
-                     breaks = c("lm", "gm"),
-                     name = "Body Size\nMetric",
-                     labels=c("log(Mass)", "Geometric\nMean")) +
-  artyfarty::theme_scientific() + 
-  guides(color = "none") +
-  facet_wrap(~mass, scales = 'free') +
-  theme(strip.background = element_blank()) +
-  guides(shape = guide_legend(override.aes = list(size=8)))#,
-        #legend.position="none")
-
-ggsave(here("Plots", "B_Mass_All.pdf"), height = 8, width = 9)
-ggsave(here("Plots", "Bin_Mass_All.jpg"), height = 8, width = 9)
-```
 

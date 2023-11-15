@@ -116,7 +116,7 @@ clean_o_mis <- function(mod){
 
 
 ```{r}
-correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "SI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
+correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
 
 nmi <- map(list_no_mis, clean_o_nomis) %>% bind_rows() 
 mi <- map(list_mis, clean_o_mis) %>% bind_rows() 
@@ -241,7 +241,7 @@ clean_b_mis <- function(mod){
 
 
 ```{r}
-correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "SI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
+correct = c("Cl", "Fdw", "Fl", "Fsw", "Hdw", "Hl", "Hpw", "Hsw", "Il", "Ipl", "Isl", "Mcl", "Mcw", "Mtl", "Pel", "Pipl", "Ppl", "Pppl", "Ppw", "Rl", "Sl", "Tl", "Tmw", "Tpw", "Ul", "Uol", "BI", "CI", "FEB", "FRI", "HEB", "HPI", "HRI", "IM", "MANUS", "MANUS2", "MANUS3", "MRI", "OLI", "PES", "PES2", "PRTI", "TRI", "lsCl", "lsFdw", "lsFl", "lsFsw", "lsHdw", "lsHl", "lsHpw", "lsHsw", "lsIl", "lsIpl", "lsIsl", "lsMcl", "lsMcw", "lsMtl", "lsPel", "lsPipl", "lsPpl", "lsPppl", "lsPpw", "lsRl", "lsSl", "lsTl", "lsTmw", "lsTpw", "lsUl", "lsUol")
 
 nmi <- map(list_no_mis, clean_b_nomis) %>% bind_rows() 
 mi <- map(list_mis, clean_b_mis) %>% bind_rows() 
