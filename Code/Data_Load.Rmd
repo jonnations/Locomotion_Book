@@ -13,7 +13,7 @@ Also the `var_complete` and `var_missing` lists are created at the bottom
 ## Packages
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse, googlesheets4, here, glue)
+pacman::p_load(tidyverse, here, glue)
 
 scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
 
@@ -24,7 +24,6 @@ here()
 ## Load Extant data  
 
 ```{r message = FALSE, warning=FALSE}
-#dat <- read_sheet("https://docs.google.com/spreadsheets/d/1-eknhyZ1JNnXqhg2kViyzVntC8NGZvILQX-aQQb1Jvk/edit#gid=325036460", na = c("NA", "?", "")) %>%
 dat <- read_csv(here('Data', 'Raw_Extant_Data.csv'), na = c("NA", "?", "")) %>% 
   select(!NOTES) %>% 
 # Recode Ordinal Rankings
@@ -134,7 +133,6 @@ spp_obs <- dat$Taxon_Upham_style %>% unique()
 ## Load Fossil Data  
 
 ```{r}
-#fdat <- read_sheet("https://docs.google.com/spreadsheets/d/1k19eAQP7NY9kjht8HfhcJNJ-jtYK10qlsdLi4i38tVc/edit#gid=0", na = c("NA", "?", "", "NULL", "–")) %>% 
 fdat <- read_csv(here('Data', 'Raw_Fossil_Data.csv'), na = c("NA", "?", "", "NULL", "–")) %>% 
   # Selecting only the lines with data
   # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
