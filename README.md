@@ -2,11 +2,11 @@
 title: Locomotion_Book  
 author: 
   - name: Jonathan Nations
-    affiliation: University of Chicago
+#    affiliation: University of Chicago
   - name: Lucas Weaver
-    affiliation: Kent State University
+#    affiliation: Kent State University
   - name: David Grossnickle
-    affiliation: Oregon Institute of Technology
+#    affiliation: Oregon Institute of Technology
 #date: "`r.Sys.Date()`"
 #output: html_document
 ---
