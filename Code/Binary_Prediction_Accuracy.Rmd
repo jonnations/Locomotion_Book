@@ -63,11 +63,9 @@ names(list_b_gm) <- paste0(names(list_b_gm), "_gm")
 
 list_b_ratio <- read_rds(here("Data","B_ratio_mods_mis.Rds"))
 
-list_b <- c(list_b_lm, list_b_gm, list_b_ratio) #%>% keep_at(pred_vars)
+list_b <- c(list_b_lm, list_b_gm, list_b_ratio) 
 
 names(list_b)
-
-#rm(list_b_lm, list_b_gm, list_b_ratio)
 
 ```
 
@@ -197,6 +195,7 @@ accuracy %>%
 
 accs <- accuracy %>%
   filter(method == "no_phy_int")
+
 as.vector(accs$var) %>% write_rds(here("Data", "Accuracy_list.rds"))
 
 accuracy %>% write_csv(here("Data", "Accuracy_Bin.csv"))
