@@ -1,17 +1,8 @@
----
-title: Locomotion_Book  
-author: 
-  - name: Jonathan Nations
-#    affiliation: University of Chicago
-  - name: Lucas Weaver
-#    affiliation: Kent State University
-  - name: David Grossnickle
-#    affiliation: Oregon Institute of Technology
-#date: "`r.Sys.Date()`"
-#output: html_document
----
+# Locomotion_Book  
 
-Repository for the draft of "Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals"
+<br>
+
+Repository for the draft of "*Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals*" by Jonathan Nations, Lucas Weaver, and David Grossnickle. 
 
 This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinities of early mammals and plesiadapiforms. 
 
