@@ -1,6 +1,6 @@
 ---
 title: "Ordinal Accuracy"
-output: html_notebook
+#output: html_notebook
 ---
 
 Calculating Accuracy in the Ordinal models.
