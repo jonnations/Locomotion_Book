@@ -11,9 +11,9 @@ date: "`r.Sys.Date()`"
 output: html_document
 ---
 
-Repository for the draft of "Preditors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals"
+Repository for the draft of "Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals"
 
-This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinitis of early mammals and plesiadapiforms. 
+This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinities of early mammals and plesiadapiforms. 
 
 #### Goals:  
 
@@ -46,9 +46,9 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 #### Run Models
 
-- We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor varaibles. We use multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
+- We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor variables. We use multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
 
-- Miltiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are avaialble. The outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`
+- Multiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are available. The outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`
 
 - Model result outputs are presented in **Tables S2** (`Data/Binary_Table.csv`) and **S3** (`Data/Ordinal_Table.csv`). These show the median and 89% probability intervals of each of the relevant parameters. Full model outputs (all ~500 parameters) can be viewed by loading the `Data/B_*_mods_*.rds` model files. The scripts to organize all of the outputs into reasonable format are in the script `Effect_Results_Tables.Rmd`. 
 
@@ -75,7 +75,7 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 - The tree plot, **Figure 1**, was made using the `Code/Tree_Plot.Rmd` script. The output is called `Plots/tre_test_rectangle.pdf`.
 
-- The effect output plots are generated in the scipts `Code/Binary_Effect_Plots.Rmd`, `Code/Ordinal_Effect_Plots.Rmd`, and `Code/Combined_Effect_Plots.Rmd`. 
+- The effect output plots are generated in the scripts `Code/Binary_Effect_Plots.Rmd`, `Code/Ordinal_Effect_Plots.Rmd`, and `Code/Combined_Effect_Plots.Rmd`. 
   - **Figures 2**: `Combined_Effects_Some_BW.pdf`
   - **Figures S1**: `B_Effects_All_BW.pdf`
   - **Figures S2**: `O_Effects_All_BW.pdf`
