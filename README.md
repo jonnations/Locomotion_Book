@@ -28,7 +28,9 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 -   Note that if you want to use `cmdstanr`, which improves the compilation time and execution time of the `brms` models, then it's a little more involved than just `install.packages()` (but definitely worth it!). See [this link](https://mc-stan.org/cmdstanr/articles/cmdstanr.html) to get started.
 
--   If you want to plot the tree (Figure 1), you need these packages: `ggtree`, `ggtreeExtra`, `tidytree`, `treeio`. If you don't want to plot it, then don't bother.
+<!--  - If you want to plot the tree (Figure 1), you need these packages: `ggtree`, `ggtreeExtra`, `tidytree`, `treeio`. If you don't want to plot it, then don't bother. -->  
+
+
 
 ## **`Code`**
 
