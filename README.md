@@ -1,5 +1,11 @@
 # Locomotion_Book
 
+
+
+[![DOI](https://zenodo.org/badge/249482943.svg)](https://zenodo.org/doi/10.5281/zenodo.10144437)
+
+
+
 Repository for the draft of "*Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals*" by Jonathan Nations, Lucas Weaver, and David Grossnickle.
 
 This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinities of early mammals and plesiadapiforms.
