@@ -128,14 +128,16 @@ ot <- bind_rows(nmi, mi) %>%
   arrange(Metric) %>%
   transform(Metric=str_replace(Metric,"ls","LSR "))  %>% view()
 
+ot %>% write_csv(here("Data", "Ordinal_Table.csv"))
+ot %>% write_csv(here("Data", "SI_Table_3_Ordinal_Results_Tab.csv"))
 ```
 ## Add Phylo Signal
 
 ```{r}
-ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
+#ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
 
-ot %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
-  write_csv(here("Data", "Ordinal_Table.csv"))
+#ot %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
+#  write_csv(here("Data", "Ordinal_Table.csv"))
 ```
 
 ```{r}
@@ -252,15 +254,18 @@ bt <- bind_rows(nmi, mi) %>%
   mutate(Metric =  factor(Metric, levels = correct)) %>%
   arrange(Metric) %>%
   transform(Metric=str_replace(Metric,"ls","LSR "))  %>% view()
+
+bt %>% write_csv(here("Data", "Binary_Table.csv"))
+bt %>% write_csv(here("Data", "SI_Table_2_Binary_Results_Tab.csv"))
 ```
 
 ## Add Pylo Signal
 
 ```{r}
-ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
+#ps <- read_csv(here("Data", "Phy_Sig_Table.csv"))
 
-bt %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
-  write_csv(here("Data", "Binary_Table.csv"))
+#bt %>% right_join(ps, by = 'Metric') %>% relocate(Metric) %>% 
+ # write_csv(here("Data", "Binary_Table.csv"))
 ```
 
 

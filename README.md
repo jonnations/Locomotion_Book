@@ -52,7 +52,7 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 #### Test Prediciton Accuracy
 
--   The scripts `Code/Binary_Prediction_Accuracy.Rmd` and `Code/Ordinal_Prediction_Accuracy.Rmd` generate Pareto-$k$ values using leave-one-out cross validation, and generate predictions for the extant species. These predictions are summarized as percentages of accurate predictions, both with and without the phylogeny as a group level effect. Outputs are `Data/Accuracy.csv` and `Data/Ord_Accuracy.csv` which are presented as **Tables S4** and **S5** in the supporting information.
+-   The script `Code/Accuracy.Rmd` generates Pareto-$k$ values using leave-one-out cross validation, and generate predictions for the extant species. These predictions are summarized as percentages of accurate predictions, both with and without the phylogeny as a group level effect. Output `Data/Accuracy.csv` which is presented as **Tables S4** in the supporting information.
 
 #### Predictions & Plots
 

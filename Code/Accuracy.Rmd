@@ -1,0 +1,456 @@
+---
+title: "Prediction Accuracy"
+#output: html_notebook
+---
+
+# Testing the prediction accuracy  
+
+When using the phylogeny in the predicitons, they are quite acurate. When NOT using the phylogeny, they are not as good for the extant species. Fossil species will always have to be predicted without the phylogeny. But how do we make a statement about what to trust in this scenario?
+
+Here, I want to check the extant predictions using the full models and the models without the group-level effects. If a particular measurement, without phylo, is pretty accurate for the extant species, then we can have more confience in the prediction for the fossil taxa. 
+
+I am going to use the accuracy measurements method from the Carnivoran paper.
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, furrr, data.table, dtplyr, tictoc)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+```
+
+# Binary
+
+## Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% filter(Genus_species != "Urocyon_cinereoargenteus") %>% 
+  filter(Genus_species != "Leopardus_geoffroyi")
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+#variables to do fossil predictions with
+#pred_vars <- fdat_cln[c(9:84)]
+
+pred_vars <- dat %>% select(Sl:lsCl) %>% colnames()
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+
+## Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+```{r}
+list_b_lm <- read_rds(here("Data","B_lm_mods_mis.Rds"))
+# lm list, and add lm suffix to names
+names(list_b_lm) <- paste0(names(list_b_lm), "_lm")
+
+list_b_gm <- read_rds(here("Data","B_gm_mods_mis.Rds"))
+names(list_b_gm) <- paste0(names(list_b_gm), "_gm")
+
+list_b_ratio <- read_rds(here("Data","B_ratio_mods_mis.Rds"))
+
+list_b <- c(list_b_lm, list_b_gm, list_b_ratio) 
+
+names(list_b)
+
+```
+
+Now, loop through (or purrr) models and predict the climbing scores for each fossil for each model
+
+
+## Accuracy function  
+
+```{r}
+#WITH PHYLO
+bin_pred_phy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species
+        ) 
+  return(d2)
+}
+
+
+bin_pred_phy_fn <- function(df){
+  future_map(df, ~bin_pred_phy(.x)) %>% bind_rows()
+}
+
+
+## NO PHYLO
+bin_pred_nophy <- function(model){
+  set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  re_formula = NA, resp = 'Locbin')
+  d2 <- as.data.frame(d) %>% 
+    rename_all(.,
+               function(x) case_when(x == 'Estimate.Locbin' | x == 'Estimate' ~ 'pred',
+                                     TRUE ~ x)) %>% 
+  select(pred) %>% 
+  mutate(pred_round = round(pred, digits = 0),
+         actual = {{model}}[[2]][[1]],
+         dif = abs(pred_round - actual),
+        species = {{model}}[[2]]$Genus_species)
+}
+
+
+bin_pred_nophy_fn <- function(df){
+  future_map(df, ~bin_pred_nophy(.x)) %>% bind_rows()
+}
+
+```
+
+```{r}
+dfi <- as.data.frame(names(list_b)) 
+colnames(dfi) <- "var"
+```
+
+## Predictions  
+```{r}
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+pred1 <- map(1, ~bin_pred_phy_fn(list_b)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dfi$var, each = 427),
+         method = 'phy',
+         locomotion = "binary")
+
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+pred2 <- map(1, ~bin_pred_nophy_fn(list_b)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dfi$var, each = 427),
+         method = 'no_phy',
+         locomotion = "binary")
+
+plan(sequential)
+
+pred <- bind_rows(pred1, pred2)
+```
+
+## Add in Multiple Regression
+```{r}
+mult <- read_rds(here("Data","B_lm_mods_multi.Rds"))[[1]]
+
+
+mpred1 <- bin_pred_phy(mult) %>% mutate(var = "multiple",
+                              method = "phy",
+                              locomotion = "binary") 
+
+mpred2 <- bin_pred_nophy(mult) %>% mutate(var = "multiple",
+                              method = "no_phy",
+                              locomotion = "binary") 
+
+preds <- bind_rows(pred, mpred1, mpred2)
+
+preds %>% write_rds(here("Data", "Binary_Preds.rds"))
+```
+
+
+## Calculate accuracy
+
+Best, in order
+```{r}
+preds <- read_rds(here("Data", "Binary_Preds.rds"))
+
+accuracy <- preds %>% 
+  group_by(method, var, locomotion) %>%  
+  summarise(accuracy = round((sum(dif == 0)/427) * 100, 
+                             digits = 1)) %>% 
+  select(var, accuracy, method, locomotion) 
+
+accuracy %>%
+  pivot_wider(names_from  = "method", values_from = "accuracy") %>%
+  mutate(dif = phy - no_phy) %>% 
+  arrange(desc(no_phy)) %>% 
+  kbl() %>%
+  kable_classic_2(full_width = F)
+
+accuracy %>% write_csv(here("Data", "Accuracy_Bin.csv"))
+```
+
+
+# Ordinal
+
+## Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% filter(Genus_species != "Urocyon_cinereoargenteus") %>% 
+  filter(Genus_species != "Leopardus_geoffroyi") %>% 
+  drop_na(Loc_Ord2) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+fdat <- read_csv(here("Data", "Fossil_Master.csv"))
+
+fdat_cln <- fdat %>% janitor::remove_empty(which = "cols") %>% colnames()
+
+pred_vars <- dat %>% select(Sl:lsCl) %>% colnames()
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+## Load & Subset Models
+
+Loading our list of log(Mass) models and selecting the ones for which we have fossil measurements. 
+
+
+```{r}
+list_o_lm <- read_rds(here("Data","O_lm_mods_mis.Rds"))
+# lm list, and add lm suffix to names
+names(list_o_lm) <- paste0(names(list_o_lm), "_lm")
+
+list_o_gm <- read_rds(here("Data","O_gm_mods_mis.Rds"))
+names(list_o_gm) <- paste0(names(list_o_gm), "_gm")
+
+list_o_ratio <- read_rds(here("Data","O_ratio_mods_mis.Rds"))
+
+list_o <- c(list_o_lm, list_o_gm, list_o_ratio) #%>% keep_at(pred_vars)
+
+names(list_o)
+
+#rm(list_b_lm, list_b_gm, list_b_ratio)
+
+```
+
+
+## Accuracy Functions
+```{r}
+
+#model <- list_o_ratio$MANUS
+ord_pred <- function(model){
+set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'LocOrd2')
+  d2 <- as.data.frame(d) %>% 
+    mutate(actual = as.factor({{model}}[[2]][[1]]),
+           actual= case_when(actual == "A"  ~ 1,
+                             actual == "Sc" ~ 2,
+                             actual == "T"  ~ 3,
+                             actual == "B" ~ 4,
+                             TRUE ~ NA),
+           pred   = colnames(d)[max.col(d,ties.method="first")], 
+           pred   = str_remove(pred,"P\\(Y = "), 
+           pred   = str_remove(pred,"\\)"),
+           pred= case_when(pred == "A"  ~ 1,
+                             pred == "Sc" ~ 2,
+                             pred == "T"  ~ 3,
+                             pred == "B" ~ 4,
+                             TRUE ~ NA)) %>% 
+    as_tibble()  %>% 
+    mutate(actual_n = as.numeric(as.character(actual)),
+           pred_n = as.numeric(as.character(pred)),
+           dif = abs(actual_n - pred_n)) %>%
+    select(actual, pred, dif) %>%
+    mutate(
+      species = {{model}}[[2]]$Genus_species)
+  return(d2)
+}
+  
+ord_pred_phy <- function(df){
+  future_map(df, ~ord_pred(.x)) %>% bind_rows()
+}
+
+ord_pred2 <- function(model){
+set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'LocOrd2',
+                re_formula = NA)
+  d2 <- as.data.frame(d) %>% 
+    mutate(actual = as.factor({{model}}[[2]][[1]]),
+           actual= case_when(actual == "A"  ~ 1,
+                             actual == "Sc" ~ 2,
+                             actual == "T"  ~ 3,
+                             actual == "B" ~ 4,
+                             TRUE ~ NA),
+           pred   = colnames(d)[max.col(d,ties.method="first")], 
+           pred   = str_remove(pred,"P\\(Y = "), 
+           pred   = str_remove(pred,"\\)"),
+           pred= case_when(pred == "A"  ~ 1,
+                             pred == "Sc" ~ 2,
+                             pred == "T"  ~ 3,
+                             pred == "B" ~ 4,
+                             TRUE ~ NA)) %>% 
+    as_tibble()  %>% 
+    mutate(actual_n = as.numeric(as.character(actual)),
+           pred_n = as.numeric(as.character(pred)),
+           dif = abs(actual_n - pred_n)) %>%
+    select(actual, pred, dif) %>% 
+    mutate(
+      species = model[[2]]$Genus_species)
+}
+  
+ord_pred_nophy <- function(df){
+  future_map(df, ~ord_pred2(.x)) %>% bind_rows()
+}
+```
+
+```{r}
+ord_pred3 <- function(model){
+set.seed(124)
+  d <-  predict({{model}}, summary = T, probs = c(0.055, 0.945),  resp = 'LocOrd2',
+                re_formula = NA)
+  d2 <- lazy_dt(d) %>% 
+    mutate(actual = as.factor({{model}}[[2]][[1]]),
+           actual= case_when(actual == "A"  ~ 1,
+                             actual == "Sc" ~ 2,
+                             actual == "T"  ~ 3,
+                             actual == "B" ~ 4,
+                             TRUE ~ NA),
+           pred   = colnames(d)[max.col(d,ties.method="first")], 
+           pred   = str_remove(pred,"P\\(Y = "), 
+           pred   = str_remove(pred,"\\)"),
+           pred= case_when(pred == "A"  ~ 1,
+                             pred == "Sc" ~ 2,
+                             pred == "T"  ~ 3,
+                             pred == "B" ~ 4,
+                             TRUE ~ NA)) %>% 
+    #as_tibble()  %>% 
+    #lazy_dt() %>% 
+    mutate(actual_n = as.numeric(as.character(actual)),
+           pred_n = as.numeric(as.character(pred)),
+           dif = abs(actual_n - pred_n)) %>%
+    select(actual, pred, dif) %>% 
+    mutate(
+      species = model[[2]]$Genus_species) %>% 
+    as_tibble()
+}
+  
+ord_pred_nophy3 <- function(df){
+  future_map(df, ~ord_pred3(.x)) %>% bind_rows()
+}
+
+ord_pred_nophy4 <- function(df){
+  map(df, ~ord_pred2(.x)) %>% bind_rows()
+}
+
+ord_pred_nophy5 <- function(df){
+  map(df, ~ord_pred3(.x)) %>% bind_rows()
+}
+```
+
+
+```{r}
+dfi <- as.data.frame(names(list_o)) 
+colnames(dfi) <- "var"
+```
+
+
+```{r}
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+pred1 <- map(1, ~ord_pred_phy(list_o)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dfi$var, each = 429),
+         method = 'phy',
+         locomotion = "ordinal")
+
+plan(sequential)
+```
+
+Do some benchmarking
+```{r}
+
+furrr_options(seed = TRUE)
+options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
+plan(multisession, workers = 8)
+
+#original future_map and dplyr
+tic()
+pred2 <- map(1, ~ord_pred_nophy(list_o)) %>% 
+  bind_rows() %>% 
+  mutate(var = rep(dfi$var, each = 429),
+         method = 'no_phy',
+         locomotion = "ordinal")
+toc()
+plan(sequential)
+```
+
+
+```{r}
+pred <- bind_rows(pred1, pred2) 
+```
+
+
+
+## Add in Multiple regression
+
+```{r}
+mult <- read_rds(here("Data","O_lm_mods_multi.Rds"))[[1]]
+
+
+mpred1 <- ord_pred(mult) %>% mutate(var = "mult",
+                              method = "phy",
+                              locomotion = "ordinal",
+                              resp = "LocOrd2") 
+
+mpred2 <- ord_pred(mult) %>% mutate(var = "mult",
+                              method = "no_phy",
+                              locomotion = "ordinal") 
+
+preds <- bind_rows(pred, mpred1, mpred2) %>% select(!resp) %>% write_rds(here("Data", "Ordinal_Preds.rds"))
+```
+
+## Calculate Accuracy
+
+```{r}
+preds <- read_rds(here("Data", "Ordinal_Preds.rds"))
+  
+accuracy <- preds %>% 
+  group_by(method, var, locomotion) %>%  
+  #filter(method == "phy") %>% 
+  summarise(accuracy = round((sum(dif == 0)/429) * 100, 
+                             digits = 1),
+            within1 = round((sum(dif <= 1)/429) * 100, digits = 1)) %>% 
+  select(var, accuracy, within1, method, locomotion) %>% 
+  arrange(desc(within1)) 
+
+accuracy %>%
+  kbl() %>%
+  kable_classic_2(full_width = F)
+
+accuracy %>% write_csv(here("Data", "Accuracy_Ord.csv"))
+```
+
+
+# Combine Binary and Ordinal
+
+
+```{r}
+a_b <- read_csv(here("Data", "Accuracy_Bin.csv"))
+
+a_o <- read_csv(here("Data", "Accuracy_Ord.csv"))
+
+a_b %>% full_join(a_o, by = c("var", "method", "locomotion", "accuracy")) %>% 
+  pivot_wider(names_from = locomotion, values_from = accuracy) %>% 
+  group_by(var, method) %>% 
+  summarise(across(within1:ordinal, ~ na.omit(.x))) %>% 
+  ungroup() %>% 
+  relocate(var, method, binary, ordinal, within1) %>% 
+  write_csv(here("Data", "Accuracy.csv")) %>% 
+  write_csv(here("Data", "SI_Table_4_Accuracy.csv"))
+```
+
