@@ -65,7 +65,7 @@ Now, loop through (or purrr) models and predict the climbing scores for each fos
 ```{r}
 colz <- c("Genus_species", "log_Mass", names(list_b2), "Specimen_Num")
 
-fd <- fdat %>% select(colz)
+fd <- fdat %>% select(all_of(colz))
 
 nnn <- function(mod, nm){
   {{mod}} %>% 
