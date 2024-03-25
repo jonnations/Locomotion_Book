@@ -14,7 +14,7 @@ I am going to use the accuracy measurements method from the Carnivoran paper.
 
 ```{r message = FALSE, warning=FALSE, include = FALSE}
 
-pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, furrr, data.table, dtplyr, tictoc)
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, data.table, dtplyr, tictoc)
 
 here::i_am("README.md")
 here()
@@ -122,9 +122,6 @@ colnames(dfi) <- "var"
 
 ## Predictions  
 ```{r}
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
 
 pred1 <- map(1, ~bin_pred_phy_fn(list_b)) %>% 
   bind_rows() %>% 
@@ -132,17 +129,12 @@ pred1 <- map(1, ~bin_pred_phy_fn(list_b)) %>%
          method = 'phy',
          locomotion = "binary")
 
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
-
 pred2 <- map(1, ~bin_pred_nophy_fn(list_b)) %>% 
   bind_rows() %>% 
   mutate(var = rep(dfi$var, each = 427),
          method = 'no_phy',
          locomotion = "binary")
 
-plan(sequential)
 
 pred <- bind_rows(pred1, pred2)
 ```
@@ -358,9 +350,6 @@ colnames(dfi) <- "var"
 
 
 ```{r}
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
 
 pred1 <- map(1, ~ord_pred_phy(list_o)) %>% 
   bind_rows() %>% 
@@ -368,17 +357,12 @@ pred1 <- map(1, ~ord_pred_phy(list_o)) %>%
          method = 'phy',
          locomotion = "ordinal")
 
-plan(sequential)
 ```
 
 Do some benchmarking
 ```{r}
 
-furrr_options(seed = TRUE)
-options(future.rng.onMisuse="ignore", future.globals.maxSize= 891289600)
-plan(multisession, workers = 8)
-
-#original future_map and dplyr
+#original map and dplyr
 tic()
 pred2 <- map(1, ~ord_pred_nophy(list_o)) %>% 
   bind_rows() %>% 
@@ -386,7 +370,6 @@ pred2 <- map(1, ~ord_pred_nophy(list_o)) %>%
          method = 'no_phy',
          locomotion = "ordinal")
 toc()
-plan(sequential)
 ```
 
 
