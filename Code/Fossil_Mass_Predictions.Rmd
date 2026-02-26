@@ -1,0 +1,350 @@
+---
+title: "Mass Prediction"
+output: html_notebook
+---
+
+Need to predict the mass for a bunch of the new fossils. 
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+source(here("Code","Name_Change.R"))
+
+dat <- read_csv(here("Data", "Raw_Extant_Data.csv")) |> 
+   mutate_at(vars(Mass_grams), log) |> 
+  mutate(fossil = "N")
+
+fdat <- read_csv(here("Data", "Fossil_Measurements_20250319.csv")) |>  mutate_at(vars(Mass_grams), log) |> 
+  mutate(fossil = "Y")
+
+comb_dat <- dat |> bind_rows(fdat) |> 
+  mutate_at(vars(Skl:Pdpw), scale2)
+
+# This is the mean and sd of the log transformed mass in grams. Can be used to reconstruct the actual mass of fossil predicitons. 
+mass_vars <- comb_dat |> 
+  summarise(mean = mean(Mass_grams, na.rm = T),
+            sd = sd(Mass_grams, na.rm = T))
+
+comb_dat <- comb_dat |> mutate(Mass = scale2(Mass_grams))
+
+fdat <- comb_dat |> filter(fossil == "Y")
+
+dat <- comb_dat |> filter(fossil == "N")
+
+var_complete_linear <-  read_rds(here("Data", "var_complete_linear.Rds"))
+
+
+```
+
+Extant Model
+Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw
+```{r}
+p1 = c(prior(normal(0, 3), class = Intercept),
+       prior(normal(0, 1), class = b),
+       prior(normal(0, 1), class = sigma))
+
+mod <- brm(Mass ~   Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Tl + Fdw + Tmw ,
+          family = gaussian(),
+          data = dat, refresh = 0, 
+          cores = 4,
+          prior = p1)
+
+```
+
+
+
+
+
+## Updates
+
+Feredocodon_chowi_IMMNH-PV01035: 
+Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Tl)
+d1 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "IMMNH-PV01035"), 
+                    #allow_new_levels = TRUE, 
+                    #re_formula =  Mass_grams ~ Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw
+                    ) %>% 
+    as.data.frame() %>% 
+    summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "IMMNH-PV01035")
+```
+
+
+Feredocodon_chowi_IMMNH-PV01925: 
+Sl + Hl + Ul + Rl + Fl + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Sl + Hl + Ul + Rl + Fl + Tl)
+d2 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "IMMNH-PV01925"), 
+                    #allow_new_levels = TRUE, 
+                    #re_formula =  Mass_grams ~ Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw
+                    ) %>% 
+    as.data.frame() %>% 
+    summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "IMMNH-PV01925")
+```
+
+Arboroharamiya_allinhopsoni_HG-M017: 
+Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw)
+d3 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "HG-M017"), 
+                    #allow_new_levels = TRUE, 
+                    #re_formula =  Mass_grams ~ Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw
+                    ) %>% 
+    as.data.frame() %>% 
+    summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "HG-M017")
+```
+
+Maiopatagium_fulculiferum_BMNH 2940: 
+Sl + Hl + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Sl + Hl + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw)
+d4 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "BMNH 2940")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "BMNH 2940")
+```
+Xianshou_songae_BMNHC-PM003253:
+Hl + Hsw + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw)
+d5 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "BMNHC-PM003253")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "BMNHC-PM003253")
+```
+
+Akidolestes_cifellii_NIGAPS139381: Hl + Ul + Rl
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Ul + Rl)
+d6 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "NIGAPS139381")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "NIGAPS139381")
+```
+
+Borealestes_cullinensis_NMS G.2020.4.1.1: Hl + Ul
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Ul)
+d7 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "NMS G.2020.4.1.1")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "NMS G.2020.4.1.1")
+```
+
+Agilocodon_scansorius_BMNH 1138: 
+Hl + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw)
+d8 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "BMNH 1138")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "BMNH 1138")
+```
+
+Liaoconodon_hui_IVPP V16051: 
+Hl + Hsw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw)
+d9 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "IVPP V16051")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "IVPP V16051")
+```
+
+Arboroharamiya_allinhopsoni_HG-M018: Hl + Hsw + Hdw + Ul + Rl + Fl + Fsw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Hdw + Ul + Rl + Fl + Fsw + Tl + Tmw)
+d10 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "HG-M018")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "HG-M018")
+```
+
+Gobiconodon_ostromi_MCZ 19860: Hl + Hsw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw)
+d11 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "MCZ 19860")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "MCZ 19860")
+```
+
+Repenomamus_robustus_V13605: Hl + Hsw + Ul + Rl + Fl + Fsw + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Ul + Rl + Fl + Fsw + Tl)
+d12 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "V13605")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "V13605")
+```
+
+Repenomamus_robustus_V12728: Hl + Hsw + Ul + Rl + Fl + Fsw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Ul + Rl + Fl + Fsw)
+d13 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "V12728")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "V12728")
+```
+
+Repenomamus_giganticus_V14155: Hl + Hsw + Ul + Rl + Fl + Fsw + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Ul + Rl + Fl + Fsw + Tl)
+d14 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "V14155")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "V14155")
+```
+
+Arboroharamiya_jenkinsi_STM33-9: Ul + Rl + Fl + Fsw + Fdw + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Ul + Rl + Fl + Fsw + Fdw + Tl)
+d15 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "STM33-9")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "STM33-9")
+```
+
+Borealestes_serendipitus_NMS G.1992.47.121.1: Rl + Fl
+```{r}
+mod1 <- update(mod, formula. = ~ Rl + Fl)
+d16 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "NMS G.1992.47.121.1")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "NMS G.1992.47.121.1")
+```
+
+Litovoi_tholocephalos_LPB FGGUB M.1700: Fl + Fsw
+```{r}
+mod1 <- update(mod, formula. = ~ Fl + Fsw)
+d17 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "LPB FGGUB M.1700")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "LPB FGGUB M.1700")
+```
+
+Repenomamus_robustus_V12549: Ul + Rl + Fl + Fsw + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Ul + Rl + Fl + Fsw + Tl)
+d18 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "V12549")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "V12549")
+```
+
+Yubaatar_zhongyuanensis_41HIII0111: Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Tl)
+d19 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num == "41HIII0111")) |>  
+    as.data.frame() %>% 
+  #group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred), Specimen_Num = "41HIII0111")
+```
+
+Jeholodens_jenkinsi_GMV 2139A: 
+Maotherium_sinensis_NGMC-97-4-15:
+Zhangeotherium_quiquecuspidens_STM38-4:
+Hl + Rl + Fl + Tl
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Rl + Fl + Tl)
+d20 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num %in% c("GMV 2139A", "NGMC-97-4-15", "STM38-4"))) |>  
+    as.data.frame() %>% 
+  group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred))
+```
+
+Vilevolodon_diplomyos_BMNH 2942:
+Shenshou_lui_LDNHMF2001:
+Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw)
+d21 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num %in% c("BMNH 2942", "LDNHMF2001"))) |>  
+    as.data.frame() %>% 
+  group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred))
+```
+
+Yanoconodon_allini_NJU-P06001A: 
+Priacodon_fruitaensis_LACM 120451:
+Volaticotherium_antiquus_IVPP V14740:
+Hl + Hsw
+```{r}
+mod1 <- update(mod, formula. = ~ Hl + Hsw )
+d22 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num %in% c("NJU-P06001A", "LACM 120451", "IVPP V14740"))) |>  
+    as.data.frame() %>% 
+  group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred))
+```
+
+Spinolestes_xenarthrosus_MCCMLH30000: 
+Henkelotherium_guimarotae_Gui Mam 138/76:
+Hl
+```{r}
+mod1 <- update(mod, formula. = ~ Hl )
+d23 <- mod1 %>% 
+    add_epred_draws(newdata = fdat |> filter(Specimen_Num %in% c("MCCMLH30000", "Gui Mam 138/76"))) |>  
+    as.data.frame() %>% 
+  group_by(Specimen_Num) |> 
+  summarise(mean = mean(.epred), sd = sd(.epred))
+```
+
+None:
+Sinobaatar_lingyuanensis_IVPP V12517: 
+Chaoyangodens_lii_JZT005-2010: 
+Mirusodens_caii_HT-B-PM-0001: 
+
+```{r}
+f_preds <- bind_rows(list(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10,
+                              d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
+                              d21, d22, d23)) |> 
+  mutate(log_mass = (mean * 2.017734) + 5.554791) |> 
+  mutate(Mass_grams = (exp(log_mass))) |> 
+  select(Mass_grams, log_mass, Specimen_Num) |> 
+  right_join(fdat, by = "Specimen_Num") |> write_csv(here("Data", "Mass_Predictions.csv"))
+        
+```
+
+x - mean(x) / sd(x) = x
+
+#```{r}
+mod %>% 
+    add_epred_draws(newdata = fdat[3,], 
+                    #allow_new_levels = TRUE, 
+                    #re_formula =  Mass_grams ~ Sl + Hl + Hsw + Hdw + Uol + Rl + Fl + Fsw + Tl + Tmw
+                    ) %>% 
+    as.data.frame() |> 
+  mutate(mass_in_g = exp(.epred)) |> 
+  ggplot(aes(x = mass_in_g)) +   stat_halfeye(.width = c(.5, .8, .95))
+```
+

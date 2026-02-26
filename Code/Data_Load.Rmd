@@ -19,6 +19,8 @@ scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = 
 
 here::i_am("README.md")
 here()
+
+var_acc = c( "Ppl",  "Hl",  "Pipl", "Rl", "Ipl", "Uol", "Fl", "Ul", "HPI", "PES", "PES2", "MANUS", "MANUS2", "OLI", "combined")
 ```
 
 ## Load Extant data  
@@ -62,81 +64,35 @@ dat <- read_csv(here('Data', 'Raw_Extant_Data.csv'), na = c("NA", "?", "")) %>%
 #################
 #Calculate Indices!
 #################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
+  mutate(
          HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
          OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
          MANUS = Ppl / Mcl,        # MANUS index
          MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         MANUS3 = Ipl / Ppl,       # Ratio of int. phalanx to prox. phalanx - Luo's fave
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl,    # PES with intermediate Phalanx
-         Toes = Pppl+Pipl          # Sum of PES toes, not a ratio
          ) %>% 
     # geometric mean
   drop_na(Tmw, Fdw, Tl, Fl, Fsw , Sl, Hdw, Hl, Hsw, Rl, Ul, Uol) %>%
-  mutate(gm = ( Tmw * Fdw * Tl * Fl * Fsw * Sl * Hdw * Hl * Hsw * Rl * Ul * Uol)^(1/12),
-         log_gm = log(gm)) %>%
-  relocate(c(gm, log_gm), .before = log_Mass) %>% 
-  # Log Shape Ratios
-  mutate(lsSl = log(Sl/gm),
-         lsHl = log(Hl/gm),
-         lsHsw = log(Hsw/gm),
-         lsHdw = log(Hdw/gm),
-         lsUol = log(Uol/gm),
-         lsUl = log(Ul/gm),
-         lsRl = log(Rl/gm),
-         lsFl = log(Fl/gm),
-         lsFsw = log(Fsw/gm),
-         lsFdw = log(Fdw/gm),
-         lsTl = log(Tl/gm),
-         lsTmw = log(Tl/gm),
-         lsIpl = log(Ipl/gm),
-         lsPppl = log(Pppl/gm),
-         lsMtl = log(Mtl/gm),
-         lsPpl = log(Ppl/gm),
-         lsPipl = log(Pipl/gm),
-         lsMcl = log(Mcl/gm),
-         lsTpw = log(Tpw/gm),
-         lsIsl = log(Isl/gm),
-         lsIl = log(Il/gm),
-         lsPel = log(Pel/gm),
-         lsHpw = log(Hpw/gm),
-         lsMcw = log(Mcw/gm),
-         lsPpw = log(Ppw/gm),
-         lsCl  = log(Cl /gm)) %>% 
   mutate_at(vars(Skl:Pdpw), log) %>% 
   mutate(Fos = FALSE) %>% 
-  select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source")) 
+  select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source")) |> 
+  select(1:8,11:14,17,19:21,26:28,32,35:36,38:39,56,58,66,70:76) |> 
+  rename(Specimen_Number = "Specimen_Num")
 
 spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+columns <- colnames(dat)
 
 ```
 
 ## Load Fossil Data  
 
 ```{r}
-fdat <- read_csv(here('Data', 'Raw_Fossil_Data.csv'), na = c("NA", "?", "", "NULL", "–")) %>% 
+fdat <- read_csv(here('Data', 'Estimated_Fossil_Data_20250320.csv'), na = c("NA", "?", "", "NULL", "–")) %>% 
   # Selecting only the lines with data
   # THIS NEEDS TO BE UPDATED AS MORE DATA COME IN!!
-  slice (1:15) %>% 
+  slice (1:48) %>% 
   select(!NOTES) %>% 
   #############
   #LOCOMOTION COLUMNS
@@ -145,74 +101,24 @@ fdat <- read_csv(here('Data', 'Raw_Fossil_Data.csv'), na = c("NA", "?", "", "NUL
          Loc_Ord2 = NA,
          Loc_bin = NA,
          log_Mass = log(Mass_grams)) %>%
-  relocate(Loc_bin, .after = Loc_mode_Binary) %>%
-  relocate(Loc_Ord, .after = Loc_mode_Ordinal) %>% 
+  relocate(Loc_bin, .after = Genus_species) %>%
+  relocate(Loc_Ord, .after = Loc_bin) %>% 
   relocate(Loc_Ord2, .after = Loc_Ord) %>%
-  relocate(log_Mass, .before = Skl) %>% 
-  mutate(gm = NA,
-         log_gm = NA) %>%
-  relocate(c(gm, log_gm), .before = log_Mass) %>%  
+  relocate(log_Mass, .after = Mass_grams) %>% 
 #################
 #Calculate Indices!
 #################
-  mutate(SI = Sh / Sl,             # Scapular Index
-         HRI = Hsw / Hl,           # Humeral Robustness Index
+  mutate(
          HPI = Hpw / Hl,           # Humeral Proximal Index
-         HEB = Hdw / Hl,           # Humeral Epicondyle Breadth
-         HHRI = Hhl / Hl,          # Humeral Head Robustness Index
-         HHW = Hhw / Hhl,          # Humeral Head Shape Index
-         DI = Hdcw / Hsw,          # Deltopectoral Crest Index
          OLI = Uol / Ul,           # Olecranon Process Length Index
-         BI = Rl / Hl,             # Brachial Index
-         IM = (Hl+Ul)/(Fl+Tl),     # Intermembral Index
-         PRTI = Mcl/(Hl+Rl),       # Palm Robustness Index
-         MRI = Mcw / Mcl,          # Metacarpal Robustness
          MANUS = Ppl / Mcl,        # MANUS index
          MANUS2 = (Ppl+Ipl)/Mcl,   # MANUS index with intermed. phalanx
-         MANUS3 = Ipl / Ppl,       # Ratio of int. phalanx to prox. phalanx - Luo's fave
-         IRI = Fgh / Fl,           # Gluteal Index
-         FRI = Fsw / Fl,           # Femoral Robustness
-         FEB = Fdw / Fl,           # Femoral Epicondyle Breadth
-         CI = Tl / Fl,             # Crural Index
-         TRI = Tmw / Tl,           # Tibial Robustness Index
-         #ANR = Anl / Al,          # Astragular Neck Robustness Index
-         #CAR = Cal / Cl,          # Calcaneal Robustness Index
-         IRI = Il / Pel,           # Illium Robustness Index
-         PR = Il / Isl,            # Pelvic Index
          PES = Pppl / Mtl,         # PES INdex
          PES2 = (Pppl+Pipl)/Mtl,    # PES with intermediate Phalanx
-         Toes = Pppl+Pipl          # Sum of PES toes, not a ratio
          ) %>% 
-  # Log Shape Ratios
-  mutate(lsSl = log(Sl/gm),
-         lsHl = log(Hl/gm),
-         lsHsw = log(Hsw/gm),
-         lsHdw = log(Hdw/gm),
-         lsUol = log(Uol/gm),
-         lsUl = log(Ul/gm),
-         lsRl = log(Rl/gm),
-         lsFl = log(Fl/gm),
-         lsFsw = log(Fsw/gm),
-         lsFdw = log(Fdw/gm),
-         lsTl = log(Tl/gm),
-         lsTmw = log(Tl/gm),
-         lsIpl = log(Ipl/gm),
-         lsPppl = log(Pppl/gm),
-         lsMtl = log(Mtl/gm),
-         lsPpl = log(Ppl/gm),
-         lsPipl = log(Pipl/gm),
-         lsMcl = log(Mcl/gm),
-         lsTpw = log(Tpw/gm),
-         lsIsl = log(Isl/gm),
-         lsIl = log(Il/gm),
-         lsPel = log(Pel/gm),
-         lsHpw = log(Hpw/gm),
-         lsMcw = log(Mcw/gm),
-         lsPpw = log(Ppw/gm),
-         lsCl  = log(Cl /gm)) %>% 
+  relocate(64:71) |> 
   mutate_at(vars(Skl:Pdpw), log) %>% 
-  mutate(Fos = TRUE) %>% 
-  select(!c("Loc_mode_Binary", "Loc_mode_Ordinal", "Loc_mode_source"))
+  mutate(Fos = TRUE) |> select(all_of(columns)) 
 ```
 
 
@@ -220,11 +126,11 @@ fdat <- read_csv(here('Data', 'Raw_Fossil_Data.csv'), na = c("NA", "?", "", "NUL
 
 ```{r}
 dat2 <- bind_rows(dat, fdat) %>% 
-  mutate_at(vars(gm:lsCl), scale2)
+  mutate_at(vars(log_Mass:PES2), scale2)
 
-dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master.csv"))
+dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master_20250320.csv"))
 
-dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master.csv"))
+dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master_20250320.csv")) 
 ```
 
 # Var Compete and Missing

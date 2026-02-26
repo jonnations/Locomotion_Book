@@ -1,0 +1,203 @@
+---
+title: "Mass Prediction"
+output: html_notebook
+---
+
+Need to predict the mass for a bunch of the new fossils. 
+
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, purrr)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+source(here("Code","Name_Change.R"))
+
+dat <- read_csv(here("Data", "Raw_Extant_Data.csv")) |> 
+   mutate_at(vars(Sl:Cl,Mass_grams), log) |> 
+  mutate(fossil = "N")
+
+fdat <- read_csv(here("Data", "Fossil_Measurements_20250319.csv")) |>  mutate_at(vars(Sl:Cl,Mass_grams), log) |> 
+  mutate(fossil = "Y")
+
+comb_dat <- dat |> bind_rows(fdat) |> 
+  select(Order, Family, Genus, species, Genus_species, Taxon_Upham_style, Specimen_Number, Mass_grams, Mass_source, Loc_mode_Categorical, Loc_mode_Ordinal, Loc_mode_binary, Loc_mode_source, Sl,Hl,Hsw,Hdw,Uol,Ul,Rl,Fl,Fsw,Fdw,Tl,Tmw,Ipl,Pppl,Mtl, Ppl,Mcl, Tpw,Isl,Il,Pel,Hpw, Mcw,Ppw,Cl, fossil) |> 
+  mutate_at(vars(Sl:Cl), scale2)
+
+# This is the mean and sd of the log transformed mass in grams. Can be used to reconstruct the actual mass of fossil predicitons. 
+mass_vars <- comb_dat |> 
+  summarise(mean = mean(Mass_grams, na.rm = T),
+            sd = sd(Mass_grams, na.rm = T))
+
+comb_dat <- comb_dat |> mutate(Mass = scale2(Mass_grams))
+
+fdat <- comb_dat |> filter(fossil == "Y") |> select(!fossil)
+
+dat <- comb_dat |> filter(fossil == "N") |> select(!fossil)
+
+var_complete_linear <-  read_rds(here("Data", "var_complete_linear.Rds"))
+
+
+```
+
+Extant Model
+Complete Measurements:
+Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Tl + Tmw
+less that 50% missing measurements:
+Sl,Hl,Hsw,Hdw,Uol,Ul,Rl,Fl,Fsw,Fdw,Tl,Tmw,Ipl,Pppl,Mtl, Ppl,Mcl, Tpw,Isl,Il,Pel,Hpw, Mcw,MRI,Ppw,Cl
+```{r}
+#p1 = c(prior(normal(0, 3), class = Intercept),
+#       prior(normal(0, 1), class = b),
+#       prior(normal(0, 1), class = sigma))
+#
+#mod <- brm(Mass ~   Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Tl + Fdw + Tmw ,
+#          family = gaussian(),
+#          data = dat, refresh = 0, 
+#          cores = 4,
+#          prior = p1)
+
+```
+
+## Updates 19 March
+
+Using a csv generated in Claude, I have the `Genus_species`, `Specimen_Num`, and `formula` columns. the formula contains all the non-NA variables for each fossil specimen. 
+
+
+##Formulas
+
+Bind formula's to the fdat data.
+```{r}
+#formula_data <- read_csv(here("Data", "Fossil_Formulas2.csv")) |> 
+ # select(Specimen_Number, formula)
+
+#fdat <- fdat |> right_join(formula_data, by = "Specimen_Number") |> 
+ # write_csv(here("Data", "Fdat_formula.csv"))
+
+
+#Get formulas using GPT code
+
+
+# Function to generate the formula without NA values
+generate_formula <- function(row) {
+  # Exclude specific columns (like Mass and existing formula)
+  measurement_cols <- names(row)[13:37]  # Adjust indices based on your data
+  # Get the non-NA column names and remove any 'NA' string that may be present
+  non_na_terms <- measurement_cols[row[measurement_cols] != 'NA' & !is.na(row[measurement_cols])]
+  # Construct the formula, ensuring no NA values are included
+  new_formula <- paste(non_na_terms, collapse = "+")
+  return(new_formula)
+}
+
+# Apply the function to each row and create a new column
+fdat$formula <- apply(fdat, 1, 
+                      generate_formula)
+
+# Save the corrected dataframe to a new CSV file
+fdat <- fdat |> filter(formula != "")
+
+fdat |> write.csv(here("Data",  "corrected_fdat.csv"), row.names = FALSE)
+
+specimens <- c("BMNH_PM1343", "CAGS01-IG1A", "MOR_109108A", "STM33-5", "CAGS00-IG03",
+               "IVPP_V23387", "IVPP_V20778", "UM_41870", "BMNH1143", "ZPAL_Mgm-I/41")
+
+#fdat <- fdat |> filter(Specimen_Number %in% specimens)
+
+#fdat <- fdat |> filter(Specimen_Number %in% c("BMNH_PM1343", "CAGS01-IG1A"))
+
+#fdat <- fdat |> filter(Specimen_Number %in% specimens)
+
+```
+
+
+## GPT
+
+```{r}
+# Fit model specifying strictly consistent data usages
+process_row <- function(Specimen_Number, formula, model_data, fit_data) {
+  
+  # Combine "Mass ~" with the formula
+  formula_text <- paste("Mass ~", formula)
+  
+  # Fit the model using the fixed data (dat)
+  mod <- brm(formula = as.formula(formula_text),
+             family = gaussian(),
+             data = fit_data,
+             refresh = 0,
+             cores = 4,
+             silent = 2,
+             prior = p1)  # Ensure prior is defined earlier in your code
+
+  # Generate predictions for the current fossil using add_epred_draws
+  predictions <- mod |> 
+    tidybayes::add_epred_draws(newdata = model_data %>% 
+                                 filter(Specimen_Number == !!Specimen_Number)) %>%
+    as_tibble() %>%
+    summarise(mean_mass = mean(.epred, na.rm = TRUE),
+              sd_mass = sd(.epred, na.rm = TRUE))
+  
+  cat('Processed', Specimen_Number, '\n')
+
+  # Ensure Specimen present post-fit
+  if(nrow(predictions) == 0) stop("Empty prediction on Specimen ")
+  
+  # Return a tibble with the Specimen_Number and predictions
+  tibble(Specimen_Number = Specimen_Number,
+         Mean_Mass = predictions$mean_mass,
+         SD_Mass = predictions$sd_mass)
+}
+
+# Processing selected Specimen numbers & independently supplying fits
+results <- fdat2 %>%
+  select(Specimen_Number, formula) %>%
+  pmap_dfr(~ process_row(.x, .y, fdat2, dat))
+
+# Convert results
+results <- results |> 
+  mutate(
+    log_mass = (Mean_Mass * 2.010932) + 5.520125,
+    Mass_grams = (exp(log_mass))
+  )
+
+fdat2 |> select(Specimen_Number, Genus_species) |> 
+  right_join(results, by = "Specimen_Number") |> 
+   mutate_at(vars(Mean_Mass:Mass_grams), round, 2) |> 
+  write_csv(here("Data", "Mass_Predictions.csv"))
+```
+
+
+
+Combine with raw data
+
+
+```{r}
+mass_dat <- read_csv(here("Data", "Mass_Predictions.csv")) |> select(Specimen_Number, Mass_grams)
+
+fd <- read_csv(here("Data", "Raw_Fossil_Data_20250320.csv")) 
+
+fd2 <- read_csv(here("Data", "Fossil_Measurements_20250319.csv")) |> 
+  select(c("Order", "Family", "Genus", "species", "Taxon_Upham_style", "Specimen_Number",  "Loc_mode_Categorical", "Loc_mode_Ordinal", "Loc_mode_binary")) 
+
+fd |> select(!c(Mass_grams, Mass_source)) |> 
+  right_join(mass_dat, by = "Specimen_Number") |> 
+  relocate(Mass_grams, .after = Specimen_Number) |> 
+  relocate(Genus_species, .before = Specimen_Number) |> 
+  #select(!c("Mean_Mass", "SD_Mass", "log_mass")) |> 
+  right_join(fd2, by = "Specimen_Number") |> 
+  rename(NOTES = "Additional Notes",
+         Pdpw = "Ppdw") |> 
+  write_csv(here("Data", "Estimated_Fossil_Data_20250320.csv"))
+
+
+```
+
+
+
+
+
+
