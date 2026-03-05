@@ -1,0 +1,359 @@
+---
+title: "Binary Multiple Predictors"
+#output: html_notebook
+---
+
+# Updates Fossil Prediction Models
+
+I need to run a series of models to cover all the combinations of measurements found in the fossil data. 
+
+These are the models with the extant data, not the predictions.
+
+The steps are:
+  - Run the "formula" code to get the list of all the variables for each taxon
+  - Run a series of models for each one.
+
+Running predictions with multiple predictors based on a dag. This means using **ALL** the top 12 predictors in one model, along with size. No Interactions. Log Mass must be used as I don't have GM for the fossils.
+
+# Preparation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse,  brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+var_acc <- read_rds(here("Data", "var_accurate.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  filter(Genus_species !=  c('Leopardus_geoffroyi', 
+                             'Urocyon_cinereoargenteus')) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family))
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+
+#Color palette
+pal = c('#62361B', '#f48a1a', '#e6ab02', '#66a61e', '#31c1bb', '#0d57ff', '#5e1ea6', '#f9581c' , '#f384f8')
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+# Model Fits
+
+### Load fossil data & generate formulas
+
+```{r}
+# Function to generate the formula without NA/NaN values
+generate_formula <- function(row) {
+  measurement_cols <- names(row)[2:15]
+  non_na_terms <- measurement_cols[
+    row[measurement_cols] != 'NA' &
+    !is.na(row[measurement_cols]) &
+    !is.nan(as.numeric(row[measurement_cols]))
+  ]
+  paste(non_na_terms, collapse = "+")
+}
+
+fdat_avg <- read_csv(here("Data", "Fossil_Master.csv")) %>% 
+  group_by(Genus_species) %>% 
+  summarise_at(vars(log_Mass:PES2), mean, na.rm = T) %>% 
+  select(c(Genus_species, PES2, HPI, PES, MANUS, 
+           Ppl, Hl, OLI, Pipl, MANUS2, Rl, Ipl, 
+           Uol, Fl, Ul, log_Mass))
+
+fdat_avg$formula <- apply(fdat_avg, 1, generate_formula)
+```
+
+### Review formulas and species groupings
+
+This table shows every species and its formula, with `n` indicating how many species share that formula. Use this to check the groupings before running models — species with too few variables should be excluded below.
+
+```{r}
+fdat_avg |> 
+  select(Genus_species, formula) |> 
+  arrange(formula) |> 
+  group_by(formula) |> 
+  mutate(n = n()) |>
+  print(n = Inf)
+```
+
+### Define species to exclude
+
+Add any species here that have too few variables to be worth modelling.
+Right now that's set to 3. to change that, change the 3rd line:
+`filter(formula == "" | str_count(formula, "\\+") < 2)`
+< 2 = fewer than 3 variables
+< 3 = fewer than 4 variables
+< 4 = fewer than 5 variables
+```{r}
+# Calculate which species have too few measurements to model
+exclude_spp <- fdat_avg |>
+  select(Genus_species, formula) |>
+  filter(formula == "" | str_count(formula, "\\+") < 2) |>  # fewer than 3 variables
+  pull(Genus_species)
+
+cat("Species excluded due to too few measurements:\n")
+cat(paste("-", exclude_spp, collapse = "\n"), "\n")
+```
+
+### Define helper functions
+
+```{r}
+# Imputation submodels - one per variable with missing data
+submodels <- list(
+  PES2   = bf(PES2|   mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  MANUS  = bf(MANUS|  mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  PES    = bf(PES|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Ppl    = bf(Ppl|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  MANUS2 = bf(MANUS2| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  HPI    = bf(HPI|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Ipl    = bf(Ipl|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Pipl   = bf(Pipl|   mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+)
+
+# Variables that get mi() wrapping in the outcome formula
+mi_vars <- names(submodels)
+
+# Prior function
+prio <- function(mod) {
+  get_prior({{mod}},
+            data2 = list(A = A),
+            data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"         ~ "normal(0, 2)",
+        class == "sd"        ~ "normal(0, 0.3)",
+        class == "Intercept" ~ "normal(0, 5)",
+        class == "sigma"     ~ "normal(0, 0.5)",
+        TRUE ~ prior
+      ))
+}
+
+# Prediction function
+pred_ext <- function(mod, dat) {
+  {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
+                    resp = "Locbin",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, Prob_of_Climbing) %>% 
+    mutate(method = "Fossil",
+           substrate = NA)
+}
+```
+
+### Build formula groups
+
+Groups species by shared formula — each group gets one model.
+
+```{r}
+formula_groups <- fdat_avg |>
+  select(Genus_species, formula) |>
+  filter(
+    !Genus_species %in% exclude_spp,
+    formula != ""
+  ) |>
+  group_by(formula) |>
+  summarise(species = list(Genus_species), .groups = "drop") |>
+  deframe()
+
+# Print a summary so you can see what will be fitted
+iwalk(formula_groups, \(spp, form) {
+  cat("Formula:", form, "\n")
+  cat("Species:", paste(spp, collapse = ", "), "\n\n")
+})
+```
+
+# Run Models
+
+takes 100 minutes to run in current form
+
+```{r message = FALSE, warning=FALSE}
+#library(furrr)
+#plan(multisession, workers = parallel::detectCores() - 2)
+tictoc::tic()
+#results <- future_imap(formula_groups, \(spp, form) {
+results <- imap(formula_groups, \(spp, form) {
+  
+  cat("Fitting model for formula:", form, "\n")
+  cat("Species:", paste(spp, collapse = ", "), "\n\n")
+  
+  # Wrap mi() variables in mi() in the outcome formula string
+  form_mi <- str_replace_all(form,
+    paste(mi_vars[order(-nchar(mi_vars))], collapse = "|"),
+    \(x) paste0("mi(", x, ")"))
+  
+  # Build outcome bf()
+  outcome_bf <- bf(
+    as.formula(paste0(
+      "Loc_bin ~ ", form_mi,
+      " + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style, cov = A))"
+    )),
+    family = bernoulli()
+  )
+  
+  # Attach only the submodels needed for this formula
+  vars_needed <- mi_vars[mi_vars %in% str_split_1(form, "\\+")]
+  
+  if (length(vars_needed) == 0) {
+    m_form <- outcome_bf
+  } else {
+    m_form <- reduce(c(list(outcome_bf), submodels[vars_needed]), `+`) + 
+      set_rescor(FALSE)
+  }
+  
+  pri <- prio(m_form)
+  
+  mod <- brm(m_form,
+             data = dat,
+             refresh = 0,
+             cores = 4,
+             data2 = list(A = A),
+             prior = pri,
+             seed = 145,
+             silent = 2,
+             control = list(max_treedepth = 15))
+  
+  out <- pred_ext(mod, fdat_avg |> filter(Genus_species %in% spp))
+  
+  rm(mod)
+  out
+}, .progress = TRUE)
+#plan(sequential)
+tictoc::toc()
+```
+
+## Combine Model Outputs
+
+```{r}
+pred_df <- bind_rows(results) |> mutate(var = "combined")
+
+pred_df |> write_csv(here("Data", "Fossil_Bin_Preds_automated.csv"))
+```
+
+# Plot
+
+```{r}
+pred_df %>% 
+  ggplot(aes(y = Prob_of_Climbing, 
+             x = Genus_species)) +
+  geom_hline(yintercept = 0.5, 
+             linetype = 2, 
+             linewidth = 0.5) +
+  stat_pointinterval(.width = c(0.5, 0.68268), 
+                     position = position_dodge(width = -.6)) + 
+  labs(x = "", y = "Probability of Climbing") +
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle=45, 
+                                 hjust=1),
+        legend.position = "none")
+```
+
+Plot with shading
+
+```{r}
+shades <- data.frame(xmin=seq(1.5,29-1.5, 2),
+                     xmax=seq(2.5,28 +.5, 2),
+                     ymin=-Inf, ymax=Inf)
+
+pred_df %>% 
+    mutate(var =  as.factor(var)) %>% 
+    mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  ggplot(aes(y = Prob_of_Climbing, 
+             x = Genus_species)) +
+  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.35, color = "grey30") +
+  stat_pointinterval(.width = 0.8,
+                     color = "grey15",
+                     linewidth = 1.7,
+                     position = position_dodge(width = -.8)) + 
+    ylim(0,1) +
+    labs(x = "", y = "Probability of Climbing") +
+    theme_pander(gM = F) + 
+    geom_rect(inherit.aes = F, 
+              data = shades, 
+              mapping = aes(xmin=xmin, 
+                            xmax=xmax, 
+                            ymin = ymin, 
+                            ymax = ymax), 
+              vjust = -0.2,
+              alpha = 0.125) +
+  scale_y_continuous(limits = c(0,1), expand = c(0.02, 0.02)) +
+  theme(axis.text.x=element_text(angle=55, hjust=1),
+        panel.border = element_rect(colour = "grey40", 
+                                    fill = NA, 
+                                    linewidth = 0.7),
+        legend.text = element_text(face = "italic"),
+        legend.title=element_blank()) +
+    guides(shape = guide_legend(override.aes = list(size=8)))
+
+ggsave(here("Plots", "Bin_Pred_Fossil_Automated.pdf"), height = 8, width = 13)
+```
+
+## Modified Plot
+
+```{r}
+sps <- c("Maiopatagium fulculiferum", "Shenshou lui", "Vilevolodon diplomyos", "Arboroharamiya jenkinsi", "Arboroharamiya allinhopsoni", "Xianshou songae", "Feredocodon chowi",  "Agilocodon scansorius",  "Rugosodon eurasiaticus", "Juramaia sinensis", "Liaoconodon hui", "Jeholodens jenkinsi", "Repenomamus robustus", "Repenomamus giganticus", "Jeholbaatar kielanae", "Filikomys primaevus", "Kryptobaatar dashzevegi", "Akidolestes cifellii", "Henkelotherium guimarotae", "Eomaia scansoria", "Maotherium senensis", "Sinodelphys szalayi", "Cokotherium jiufotangensis", "Ambolestes zhoui")
+
+shades <- data.frame(xmin=seq(1.5,24-1.5, 2),
+                     xmax=seq(2.5,23 +.5, 2),
+                     ymin=-Inf, ymax=Inf)
+
+pred_df %>% 
+    mutate(Genus_species = gsub("_", " ", Genus_species)) %>% 
+  filter(Genus_species %in% sps) |> 
+  ggplot(aes(y = Prob_of_Climbing, 
+             x = factor(Genus_species, level = sps))) +
+  geom_hline(yintercept = 0.5, linetype = 2, linewidth = 0.35, color = "grey30") +
+  stat_pointinterval(.width = 0.8,
+                     color = "grey15",
+                     linewidth = 1.7,
+                     position = position_dodge(width = -.8)) + 
+    ylim(0,1) +
+    labs(x = "", y = "Probability of Climbing") +
+    theme_pander(gM = F) + 
+    geom_rect(inherit.aes = F, 
+              data = shades, 
+              mapping = aes(xmin=xmin, 
+                            xmax=xmax, 
+                            ymin = ymin, 
+                            ymax = ymax), 
+              vjust = -0.2,
+              alpha = 0.125) +
+  scale_y_continuous(limits = c(0,1), expand = c(0.02, 0.02)) +
+  theme(axis.text.x=element_text(angle=55, hjust=1),
+        panel.border = element_rect(colour = "grey40", fill=NA, size=0.7),
+        legend.text = element_text(face = "italic"),
+        legend.title=element_blank(),
+        plot.margin = margin(0.5,0.5,0.5,1.2, "cm")) +
+    guides(shape = guide_legend(override.aes = list(size=8)))
+
+ggsave(here("Plots", "Bin_Pred_Fossil_ordered_automated.pdf"), height = 4, width = 10)
+ggsave(here("Plots", "Bin_Pred_Fossil_ordered_automated.png"), height = 4, width = 10)
+```

@@ -84,10 +84,12 @@ spp_obs <- dat$Taxon_Upham_style %>% unique()
 
 columns <- colnames(dat)
 
+dat |> write_csv("Full_Dataset_Indices_NotScaled.csv")
 ```
 
 ## Load Fossil Data  
 
+***THE NEW FOSSIL DATAFRAME NEEDS TO BE OPENED HERE!! CHANGE THE NAME OF THE FILE THAT IS READ IN***
 ```{r}
 fdat <- read_csv(here('Data', 'Estimated_Fossil_Data_20250320.csv'), na = c("NA", "?", "", "NULL", "–")) %>% 
   # Selecting only the lines with data
@@ -128,9 +130,9 @@ fdat <- read_csv(here('Data', 'Estimated_Fossil_Data_20250320.csv'), na = c("NA"
 dat2 <- bind_rows(dat, fdat) %>% 
   mutate_at(vars(log_Mass:PES2), scale2)
 
-dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master_20250320.csv"))
+dat2 %>% filter(Fos == FALSE) %>% select(!Fos) %>% write_csv(here("Data", "Extant_Master.csv"))
 
-dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master_20250320.csv")) 
+dat2 %>% filter(Fos == TRUE) %>% select(!Fos) %>% write_csv(here("Data", "Fossil_Master.csv")) 
 ```
 
 # Var Compete and Missing

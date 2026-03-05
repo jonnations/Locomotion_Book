@@ -1,0 +1,370 @@
+---
+title: "Ordinal Multiple Predictors - Automated"
+#output: html_notebook
+---
+
+# Ordinal Fossil Prediction Models
+
+I need to run a series of models to cover all the combinations of measurements found in the fossil data. 
+
+The steps are:
+  - Run the "formula" code to get the list of all the variables for each taxon
+  - Run a series of models for each combination of missing data.
+
+# Preparation  
+
+### Load packages and functions  
+```{r message = FALSE, warning=FALSE, include = FALSE}
+
+pacman::p_load(tidyverse, brms, cmdstanr, kableExtra, here, ape, tidybayes, patchwork, glue, ggthemes)
+
+options(brms.backend = "cmdstanr")
+
+scale2 <- function(x, na.rm = TRUE) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm)
+
+here::i_am("README.md")
+here()
+
+var_complete <- read_rds(here("Data", "var_complete.Rds"))
+var_missing <- read_rds(here("Data", "var_missing.Rds"))
+var_acc <- read_rds(here("Data", "var_accurate.Rds"))
+
+source(here("Code","Name_Change.R"))
+```
+
+### Load data  
+All data loading and wrangling in `Code/Data_Load.Rmd`
+```{r}
+dat <- read_csv(here("Data", "Extant_Master.csv")) %>% 
+  filter(Genus_species !=  c('Leopardus_geoffroyi', 
+                             'Urocyon_cinereoargenteus')) %>% 
+  drop_na(Loc_Ord2) %>% 
+  mutate(Family = case_when(
+    Family == 'Callitrichidae (Cebidae)' ~ 'Callitrichidae',
+    Family == 'Prionodontidae (Viverridae)' ~ 'Prionodontidae',
+    TRUE ~ Family)) %>% 
+  mutate(Loc_Ord2 = as.ordered(Loc_Ord2),
+         Loc_Ord2 = fct_relevel(Loc_Ord2, c("B","T","Sc","A")))
+
+#species in dataset
+spp_obs <- dat$Taxon_Upham_style %>% unique()
+```
+
+### Load Tree & Get Cor Matrix
+
+```{r}
+tr <- ape::read.nexus(
+  here("Data","MCC_Upham_all_mammals.nex"))
+tr <- ape::keep.tip(tr, spp_obs)
+A <- ape::vcv.phylo(tr, corr = TRUE)
+```
+
+# Model Fits
+
+### Load fossil data & generate formulas
+
+```{r}
+# Function to generate the formula without NA/NaN values
+generate_formula <- function(row) {
+  measurement_cols <- names(row)[2:15]
+  non_na_terms <- measurement_cols[
+    row[measurement_cols] != 'NA' &
+    !is.na(row[measurement_cols]) &
+    !is.nan(as.numeric(row[measurement_cols]))
+  ]
+  paste(non_na_terms, collapse = "+")
+}
+
+fdat_avg <- read_csv(here("Data", "Fossil_Master.csv")) %>% 
+  group_by(Genus_species) %>% 
+  summarise_at(vars(log_Mass:PES2), mean, na.rm = T) %>% 
+  select(c(Genus_species, PES2, HPI, PES, MANUS, 
+           Ppl, Hl, OLI, Pipl, MANUS2, Rl, Ipl, 
+           Uol, Fl, Ul, log_Mass))
+
+fdat_avg$formula <- apply(fdat_avg, 1, generate_formula)
+```
+
+### Review formulas and species groupings
+
+This table shows every species and its formula, with `n` indicating how many species share that formula. Use this to check groupings before running models.
+
+```{r}
+fdat_avg |> 
+  select(Genus_species, formula) |> 
+  arrange(formula) |> 
+  group_by(formula) |> 
+  mutate(n = n()) |>
+  print(n = Inf)
+```
+
+### Define species to exclude
+
+Species with too few measurements are excluded automatically based on the threshold below. Review the printed list to confirm.
+
+```{r}
+# Exclude species with fewer than 3 predictor variables
+# To change threshold: str_count < 1 means fewer than 2 vars,
+#                      str_count < 2 means fewer than 3 vars,
+#                      str_count < 3 means fewer than 4 vars, etc.
+exclude_spp <- fdat_avg |>
+  select(Genus_species, formula) |>
+  filter(formula == "" | str_count(formula, "\\+") < 1) |>
+  pull(Genus_species)
+
+cat("Species excluded due to too few measurements:\n")
+cat(paste("-", exclude_spp, collapse = "\n"), "\n")
+```
+
+### Define helper functions
+
+```{r}
+# Imputation submodels - one per variable with missing data
+submodels <- list(
+  PES2   = bf(PES2|   mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  MANUS  = bf(MANUS|  mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  PES    = bf(PES|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Ppl    = bf(Ppl|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  MANUS2 = bf(MANUS2| mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  HPI    = bf(HPI|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Ipl    = bf(Ipl|    mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian(),
+  Pipl   = bf(Pipl|   mi() ~ log_Mass + Sl + Hl + Hsw + Hdw + Uol + Ul + Rl + Fl + Fsw + Fdw + Tl + Tmw + (1|gr(Taxon_Upham_style, cov = A))) + gaussian()
+)
+
+# Variables that get mi() wrapping in the outcome formula
+mi_vars <- names(submodels)
+
+# Prior function
+prio <- function(mod) {
+  get_prior({{mod}},
+            data2 = list(A = A),
+            data = dat) %>% 
+    mutate(
+      prior = case_when(
+        class == "b"         ~ "normal(0, 2)",
+        class == "sd"        ~ "normal(0, 0.3)",
+        class == "Intercept" ~ "student_t(5, 0, 0.6)",
+        class == "sigma"     ~ "normal(0, 0.5)",
+        TRUE ~ prior
+      ))
+}
+
+# Prediction function
+pred_ext <- function(mod, dat) {
+  {{mod}} %>% 
+    add_epred_draws(newdata = {{dat}}, 
+                    resp = "LocOrd2",
+                    value = "Prob_of_Climbing",
+                    allow_new_levels = TRUE, 
+                    re_formula = NA) %>% 
+    as.data.frame() %>% 
+    select(Genus_species, .category, Prob_of_Climbing) %>% 
+    mutate(method = "Fossil",
+           substrate = NA)
+}
+```
+
+### Build formula groups
+
+Groups species by shared formula — each unique formula gets one model.
+
+```{r}
+formula_groups <- fdat_avg |>
+  select(Genus_species, formula) |>
+  filter(
+    !Genus_species %in% exclude_spp,
+    formula != ""
+  ) |>
+  group_by(formula) |>
+  summarise(species = list(Genus_species), .groups = "drop") |>
+  deframe()
+
+# Print a summary so you can see what will be fitted
+iwalk(formula_groups, \(spp, form) {
+  cat("Formula:", form, "\n")
+  cat("Species:", paste(spp, collapse = ", "), "\n\n")
+})
+```
+
+# Run Models
+
+```{r message = FALSE, warning=FALSE}
+plan(sequential)  # change to plan(multisession, workers = 3) to parallelise
+
+results <- imap(formula_groups, \(spp, form) {
+  
+  cat("Fitting model for formula:", form, "\n")
+  cat("Species:", paste(spp, collapse = ", "), "\n\n")
+  
+  # Wrap mi() variables in mi() - sort longest first to avoid substring matches
+  # e.g. MANUS2 must be matched before MANUS
+  form_mi <- str_replace_all(form,
+    paste(mi_vars[order(-nchar(mi_vars))], collapse = "|"),
+    \(x) paste0("mi(", x, ")"))
+  
+  # Build outcome bf()
+  outcome_bf <- bf(
+    as.formula(paste0(
+      "Loc_Ord2 ~ ", form_mi,
+      " + log_Mass + (1|Genus_species) + (1|gr(Taxon_Upham_style, cov = A))"
+    )),
+    family = cumulative()
+  )
+  
+  # Attach only the submodels needed for this formula
+  vars_needed <- mi_vars[mi_vars %in% str_split_1(form, "\\+")]
+  
+  if (length(vars_needed) == 0) {
+    m_form <- outcome_bf
+  } else {
+    m_form <- reduce(c(list(outcome_bf), submodels[vars_needed]), `+`) + 
+      set_rescor(FALSE)
+  }
+  
+  pri <- prio(m_form)
+  
+  mod <- brm(m_form,
+             data = dat,
+             refresh = 0,
+             cores = 4,
+             data2 = list(A = A),
+             prior = pri,
+             seed = 145,
+             silent = 2,
+             control = list(max_treedepth = 15))
+  
+  out <- pred_ext(mod, fdat_avg |> filter(Genus_species %in% spp))
+  
+  rm(mod)
+  gc()
+  out
+}, .progress = TRUE)
+```
+
+## Combine Model Outputs
+
+```{r}
+pred_df <- bind_rows(results) |> mutate(var = "combined")
+
+pred_df |> write_csv(here("Data", "Fossil_Ord_Preds.csv"))
+```
+
+## Derive max_rank
+
+Takes the long-format draws and finds the most probable category per draw per species.
+
+```{r}
+pred_wide <- pred_df |>
+  arrange(Genus_species, .category) |>
+  pivot_wider(
+    names_from = .category,
+    values_from = Prob_of_Climbing,
+    values_fn = list
+  ) |>
+  unnest(cols = everything()) |>
+  rename(P1 = "A", P2 = "Sc", P3 = "T", P4 = "B") |>
+  mutate(wa_rank = P1 + (2 * P2) + (3 * P3) + (4 * P4))
+
+pred_all <- pred_wide |>
+  rownames_to_column("id") |>
+  left_join(
+    pred_wide |>
+      rownames_to_column("id") |>
+      gather(max_rank, max_prob, P1:P4) |>
+      group_by(id) |>
+      slice(which.max(max_prob)) |>
+      select(id, max_rank, max_prob),
+    by = "id"
+  )
+```
+
+# Plots
+
+## All Species
+
+```{r}
+pred_all |>
+  mutate(
+    rank = case_when(
+      max_rank == "P1" ~ "Arboreal",
+      max_rank == "P2" ~ "Scansorial",
+      max_rank == "P3" ~ "Terrestrial",
+      max_rank == "P4" ~ "Inter-Substrate"
+    ),
+    rank = fct_relevel(rank, c("Arboreal", "Scansorial", "Terrestrial", "Inter-Substrate")),
+    Genus_species = gsub("_", " ", Genus_species)
+  ) |>
+  group_by(Genus_species, rank) |>
+  count(max_rank) |>
+  drop_na() |>
+  ggplot(aes(y = Genus_species, x = n, fill = rank)) +
+  geom_bar(position = "fill", stat = "identity", alpha = 0.8) +
+  scale_fill_grey(start = 0.8, end = 0, name = "") +
+  scale_x_continuous(
+    breaks = c(0, 0.5, 1),
+    label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))
+  ) +
+  labs(y = "", x = "Proportion of Estimates", title = "Fossil Predictions") +
+  theme_classic() +
+  theme(
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "NA"),
+    axis.ticks = element_line(linewidth = rel(0.25)),
+    legend.position = "bottom",
+    strip.background = element_blank(),
+    strip.text = element_text(face = "italic"),
+    axis.text.y = element_text(face = "italic")
+  ) +
+  scale_y_discrete(limits = rev)
+
+ggsave(here("Plots", "Ord_Pred_Fossil_All.pdf"), width = 10, height = 10)
+ggsave(here("Plots", "Ord_Pred_Fossil_All.jpg"), width = 10, height = 10)
+```
+
+## Modified Plot - Selected Species in Order
+
+```{r}
+sps <- c("Maiopatagium fulculiferum", "Shenshou lui", "Vilevolodon diplomyos",
+         "Arboroharamiya jenkinsi", "Arboroharamiya allinhopsoni", "Xianshou songae",
+         "Feredocodon chowi", "Agilocodon scansorius", "Rugosodon eurasiaticus",
+         "Juramaia sinensis", "Liaoconodon hui", "Jeholodens jenkinsi",
+         "Repenomamus robustus", "Repenomamus giganticus", "Jeholbaatar kielanae",
+         "Filikomys primaevus", "Kryptobaatar dashzevegi", "Akidolestes cifellii",
+         "Henkelotherium guimarotae", "Eomaia scansoria", "Maotherium senensis",
+         "Sinodelphys szalayi", "Cokotherium jiufotangensis", "Ambolestes zhoui")
+
+pred_all |>
+  mutate(
+    rank = case_when(
+      max_rank == "P1" ~ "Arboreal",
+      max_rank == "P2" ~ "Scansorial",
+      max_rank == "P3" ~ "Terrestrial",
+      max_rank == "P4" ~ "Inter-Substrate"
+    ),
+    rank = fct_relevel(rank, c("Arboreal", "Scansorial", "Terrestrial", "Inter-Substrate")),
+    Genus_species = gsub("_", " ", Genus_species)
+  ) |>
+  filter(Genus_species %in% sps) |>
+  group_by(Genus_species, rank) |>
+  count(max_rank) |>
+  drop_na() |>
+  ggplot(aes(y = factor(Genus_species, levels = rev(sps)), x = n, fill = rank)) +
+  geom_bar(position = "fill", stat = "identity", alpha = 0.8) +
+  scale_fill_grey(start = 0.8, end = 0, name = "") +
+  scale_x_continuous(
+    breaks = c(0, 0.5, 1),
+    label = ~ scales::comma(.x, accuracy = c(1, 0.1, 1))
+  ) +
+  labs(y = "", x = "Proportion of Estimates", title = "Fossil Predictions") +
+  theme_classic() +
+  theme(
+    panel.border = element_blank(),
+    axis.line = element_line(colour = "NA"),
+    axis.ticks = element_line(linewidth = rel(0.25)),
+    legend.position = "bottom",
+    axis.text.y = element_text(face = "italic")
+  )
+
+ggsave(here("Plots", "Ord_Pred_Fossil_ordered.pdf"), width = 8, height = 8)
+ggsave(here("Plots", "Ord_Pred_Fossil_ordered.jpg"), width = 8, height = 8)
+```

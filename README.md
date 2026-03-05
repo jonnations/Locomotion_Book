@@ -2,11 +2,9 @@
 output: html_document
 ---
 
-# Locomotion_Book
+# Dumas Locomotion project
 
-[![DOI](https://zenodo.org/badge/249482943.svg)](https://zenodo.org/doi/10.5281/zenodo.10144437)
-
-Repository for the draft of "*Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals*" by Jonathan Nations, Lucas Weaver, and David Grossnickle.
+This is a modification of the repository for "*Predictors of arboreality from the mammalian appendicular skeleton illuminate locomotor trends among early mammals*" by Jonathan Nations, Lucas Weaver, and David Grossnickle.
 
 This is an investigation into the morphological signature of climbing in (mostly small, extant) mammals to better understand the locomotor affinities of early mammals and plesiadapiforms.
 
@@ -38,13 +36,13 @@ This is an investigation into the morphological signature of climbing in (mostly
 
 #### Organize Data
 
--   The first step is to take the raw data from our measurements and calculate the indices, geometric means, and log-shape ratios. The raw data are (`Data/Raw_Data_Extant.csv`, and `Data/Raw_Data_Fossil.csv`) and are presented as **Tables S1** and **S6** in the Supporting Information. We also scale the raw data to a mean of zero and a standard deviation of 1, which puts all values on the same scale and helps interpretability, comparability, prior choice, and model convergence. All of this is done in `Code/Data_load.Rmd`. The outputs are called `Data/Extant_Master.csv` and `Data/Fossil_Master.csv`.
+-   The first step is to take the raw data from our measurements and calculate the indices, geometric means, and log-shape ratios. The raw data are (`Data/Raw_Data_Extant.csv`, and `Data/Raw_Data_Fossil.csv`). We also scale the raw data to a mean of zero and a standard deviation of 1, which puts all values on the same scale and helps interpretability, comparability, prior choice, and model convergence. All of this is done in `Code/Data_load.Rmd`. The outputs are called `Data/Extant_Master.csv` and `Data/Fossil_Master.csv`.
 
 #### Run Models
 
 -   We use the extant data to build predictive models. The models are found in `Code/Binary_Mods.Rmd` for the binary logistic regression models, and `Code/Ordinal_Mods` for the ranked locomotor variables. We use multilevel models generated in [**brms**](https://github.com/paul-buerkner/brms). You can see the model structure, missing data estimation methods, priors, etc. by looking at these scripts. **WARNING**, These models take a long time to run! Hours! These scripts save the model outputs as `B_gm_mods_mis.rds`, `B_gm_mods_mis.rds`, `B_ratio_mods_mis.rds`, `O_gm_mods_mis.rds`, `O_gm_mods_mis.rds`, and `O_ratio_mods_mis.rds`, which are all pretty big files so they are not saved on GitHub. But they are used in all the predictions, so if you are following along you need to run these models and save the outputs before continuing on.
 
--   Multiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are available. The outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`
+-   Multiple Regression models are run in the scripts `Code/Binary_Mult_Mods.Rmd` and `Code/Ordinal_Mult_Mods.Rmd`. These are models that use all of the "accurate" predictors (see next header) in the model. There are many of them, as the fossil data are missing lots of data, and a different model has to be run for most of them individually based on which predictors are available. The model outputs are `Data/B_lm_mods_multi.rds` and `Data/O_lm_mods_multi.rds`. Importantly, the predictions for each fossil is saved as `Data/Fossil_Bin_Preds.csv`. These are the predictions, and can be used to plot the data. No need to load in the models themselves. 
 
 -   Model result outputs are presented in **Tables S2** (`Data/Binary_Table.csv`) and **S3** (`Data/Ordinal_Table.csv`). These show the median and 89% probability intervals of each of the relevant parameters. Full model outputs (all \~500 parameters) can be viewed by loading the `Data/B_*_mods_*.rds` model files. The scripts to organize all of the outputs into reasonable format are in the script `Effect_Results_Tables.Rmd`.
 
