@@ -447,7 +447,7 @@ a_o <- read_csv(here("Data", "Accuracy_Ord.csv"))
 a_b %>% full_join(a_o, by = c("var", "method", "locomotion", "accuracy")) %>% 
   pivot_wider(names_from = locomotion, values_from = accuracy) %>% 
   group_by(var, method) %>% 
-  summarise(across(within1:ordinal, ~ na.omit(.x))) %>% 
+  reframe(across(within1:ordinal, ~ na.omit(.x))) %>% 
   ungroup() %>% 
   relocate(var, method, binary, ordinal, within1) %>% 
   write_csv(here("Data", "Accuracy.csv")) %>% 
